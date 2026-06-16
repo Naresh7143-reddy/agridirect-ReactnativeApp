@@ -1,0 +1,86 @@
+# OSX
+.DS_Store
+
+# Xcode
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.xcuserstate
+**/.xcode.env.local
+
+# Android/IntelliJ
+build/
+android/app/build/
+android/app/.cxx/
+android/.gradle/
+android/build/
+.idea/
+.gradle
+local.properties
+*.iml
+*.hprof
+.cxx/
+*.keystore
+!debug.keystore
+.kotlin/
+
+# Secrets
+android/gradle.properties
+
+# node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# fastlane
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
+
+# Bundle artifact
+*.jsbundle
+
+# Ruby / CocoaPods
+**/Pods/
+/vendor/bundle/
+
+# Metro
+.metro-health-check*
+
+# Testing
+/coverage
+
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Generated reports & dev-only files
+api-results.json
+audit-results.json
+api-test-report.md
+*_STATUS_REPORT.xlsx
+.claude/
+scripts/
+AGRIDIRECT_WEB_PROMPTS.md
+PLAY_STORE_LISTING.txt
+RELEASE_CHECKLIST.txt
+hoek-patch.js
+start-metro.js
+jest.setup.js
