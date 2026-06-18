@@ -84,3 +84,7 @@ RELEASE_CHECKLIST.txt
 hoek-patch.js
 start-metro.js
 jest.setup.js
+
+# Firebase / Google Services (contains API keys)
+android/app/google-services.json
+ios/GoogleService-Info.plist
