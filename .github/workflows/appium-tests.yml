@@ -24,7 +24,7 @@ env:
   ANDROID_ARCH: x86_64
   AVD_NAME: Pixel_6_API_34
   JAVA_VERSION: '17'
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
   APK_PATH: android/app/build/outputs/apk/release/app-release.apk
 
 jobs:
@@ -55,8 +55,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: appium-tests/package-lock.json
 
       # ── 4. Setup Android SDK ─────────────────────────────────────────────────
       - name: Setup Android SDK
@@ -89,7 +87,7 @@ jobs:
       # ── 7. Install Node dependencies ─────────────────────────────────────────
       - name: Install Appium framework dependencies
         working-directory: appium-tests
-        run: npm ci
+        run: npm install
 
       # ── 8. Install Appium + UiAutomator2 ─────────────────────────────────────
       - name: Install Appium server and drivers
