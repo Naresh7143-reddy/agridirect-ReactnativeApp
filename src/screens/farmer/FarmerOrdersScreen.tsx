@@ -105,12 +105,14 @@ interface OrderCardProps {
   onPress: () => void;
   onAccept: () => void;
   onReject: () => void;
+  onPack: () => void;
 }
 
-const OrderCard: React.FC<OrderCardProps> = ({ order, onPress, onAccept, onReject }) => {
-  const totalKg = order.items.reduce((s, i) => s + i.quantity, 0);
-  const firstThree = order.items.slice(0, 3);
-  const extra = order.items.length - 3;
+const OrderCard: React.FC<OrderCardProps> = ({ order, onPress, onAccept, onReject, onPack }) => {
+  const items = order.items ?? [];
+  const totalKg = items.reduce((s, i) => s + i.quantity, 0);
+  const firstThree = items.slice(0, 3);
+  const extra = items.length - 3;
 
   const copyId = () => {
     Clipboard.setString(order.orderNumber);
@@ -154,20 +156,20 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onPress, onAccept, onRejec
         </View>
 
         <Text style={cardStyles.buyerName} numberOfLines={1}>
-          {order.buyerName ?? 'Buyer'} · {order.deliveryAddress.city}
+          {order.buyerName ?? 'Buyer'}{order.deliveryAddress?.city ? ` · ${order.deliveryAddress.city}` : ''}
         </Text>
 
         <Text style={cardStyles.summary}>
-          {order.items.length} item{order.items.length !== 1 ? 's' : ''} · {totalKg} units
+          {items.length} item{items.length !== 1 ? 's' : ''} · {totalKg} units
         </Text>
 
         <View style={cardStyles.bottomRow}>
-          <Text style={cardStyles.total}>₹{order.grandTotal.toFixed(2)}</Text>
+          <Text style={cardStyles.total}>₹{(order.grandTotal ?? 0).toFixed(2)}</Text>
           <StatusBadge status={order.status} />
         </View>
       </View>
 
-      {/* Quick action buttons (shown when PENDING) */}
+      {/* Quick action buttons */}
       {order.status === OrderStatus.PENDING && (
         <View style={cardStyles.actions}>
           <TouchableOpacity style={cardStyles.acceptBtn} onPress={onAccept}>
@@ -175,6 +177,14 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onPress, onAccept, onRejec
           </TouchableOpacity>
           <TouchableOpacity style={cardStyles.rejectBtn} onPress={onReject}>
             <Icon name="close" size={16} color={Colors.white} />
+          </TouchableOpacity>
+        </View>
+      )}
+      {order.status === OrderStatus.ACCEPTED && (
+        <View style={cardStyles.actions}>
+          <TouchableOpacity style={cardStyles.packBtn} onPress={onPack}>
+            <Icon name="cube-outline" size={14} color={Colors.white} />
+            <Text style={cardStyles.packTxt}>Pack</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -241,6 +251,16 @@ const cardStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  packBtn: {
+    borderRadius: 8,
+    backgroundColor: Colors.warning,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 2,
+  },
+  packTxt: { fontSize: 10, fontWeight: '700', color: Colors.white },
 });
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
@@ -274,49 +294,70 @@ const emptyStyles = StyleSheet.create({
 
 interface ConfirmModalProps {
   visible: boolean;
-  action: 'accept' | 'reject' | null;
+  action: 'accept' | 'reject' | 'pack' | null;
   orderId: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-const ConfirmModal: React.FC<ConfirmModalProps> = ({ visible, action, orderId, onConfirm, onCancel }) => (
-  <Modal
-    isVisible={visible}
-    onBackdropPress={onCancel}
-    onBackButtonPress={onCancel}
-    animationIn="slideInUp"
-    animationOut="slideOutDown"
-    style={modalStyles.modal}
-  >
-    <View style={modalStyles.sheet}>
-      <View style={modalStyles.handle} />
-      <Icon
-        name={action === 'accept' ? 'checkmark-circle' : 'close-circle'}
-        size={48}
-        color={action === 'accept' ? Colors.success : Colors.error}
-        style={{ alignSelf: 'center', marginBottom: 12 }}
-      />
-      <Text style={modalStyles.title}>
-        {action === 'accept' ? 'Accept this order?' : 'Decline this order?'}
-      </Text>
-      <Text style={modalStyles.sub}>
-        {action === 'accept'
-          ? "You'll be committed to prepare and hand over this order for delivery."
-          : 'The buyer will be notified and the order will be cancelled.'}
-      </Text>
-      <TouchableOpacity
-        style={[modalStyles.confirmBtn, { backgroundColor: action === 'accept' ? Colors.success : Colors.error }]}
-        onPress={onConfirm}
-      >
-        <Text style={modalStyles.confirmTxt}>{action === 'accept' ? 'Yes, Accept' : 'Yes, Decline'}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={modalStyles.cancelBtn} onPress={onCancel}>
-        <Text style={modalStyles.cancelTxt}>Cancel</Text>
-      </TouchableOpacity>
-    </View>
-  </Modal>
-);
+const MODAL_CONFIG = {
+  accept: {
+    icon: 'checkmark-circle',
+    color: Colors.success,
+    title: 'Accept this order?',
+    sub: "You'll be committed to prepare and hand over this order for delivery.",
+    btnLabel: 'Yes, Accept',
+  },
+  pack: {
+    icon: 'cube',
+    color: Colors.warning,
+    title: 'Mark as Packed?',
+    sub: 'Confirm that this order is packed and ready for pickup by a delivery agent.',
+    btnLabel: 'Yes, Mark Packed',
+  },
+  reject: {
+    icon: 'close-circle',
+    color: Colors.error,
+    title: 'Decline this order?',
+    sub: 'The buyer will be notified and the order will be cancelled.',
+    btnLabel: 'Yes, Decline',
+  },
+};
+
+const ConfirmModal: React.FC<ConfirmModalProps> = ({ visible, action, orderId, onConfirm, onCancel }) => {
+  const cfg = action ? MODAL_CONFIG[action] : MODAL_CONFIG.reject;
+  return (
+    <Modal
+      isVisible={visible}
+      onBackdropPress={onCancel}
+      onBackButtonPress={onCancel}
+      animationIn="slideInUp"
+      animationOut="slideOutDown"
+      style={modalStyles.modal}
+    >
+      <View style={modalStyles.sheet}>
+        <View style={modalStyles.handle} />
+        <Icon
+          name={cfg.icon}
+          size={48}
+          color={cfg.color}
+          style={{ alignSelf: 'center', marginBottom: 12 }}
+        />
+        <Text style={modalStyles.title}>{cfg.title}</Text>
+        <Text style={modalStyles.sub}>{cfg.sub}</Text>
+        <TouchableOpacity
+          style={[modalStyles.confirmBtn, { backgroundColor: cfg.color }]}
+          onPress={onConfirm}
+        >
+          <Text style={modalStyles.confirmTxt}>{cfg.btnLabel}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={modalStyles.cancelBtn} onPress={onCancel}>
+          <Text style={modalStyles.cancelTxt}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+};
 
 const modalStyles = StyleSheet.create({
   modal: { justifyContent: 'flex-end', margin: 0 },
@@ -358,7 +399,7 @@ const FarmerOrdersScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<{
     visible: boolean;
-    action: 'accept' | 'reject' | null;
+    action: 'accept' | 'reject' | 'pack' | null;
     orderId: string;
   }>({ visible: false, action: null, orderId: '' });
 
@@ -418,7 +459,7 @@ const FarmerOrdersScreen: React.FC = () => {
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  const openModal = (action: 'accept' | 'reject', orderId: string) => {
+  const openModal = (action: 'accept' | 'reject' | 'pack', orderId: string) => {
     setModal({ visible: true, action, orderId });
   };
 
@@ -428,9 +469,11 @@ const FarmerOrdersScreen: React.FC = () => {
     try {
       if (action === 'accept') {
         await ordersApi.accept(orderId);
-        Toast.show({ type: 'success', text1: 'Order accepted ✓' });
+        Toast.show({ type: 'success', text1: 'Order accepted' });
+      } else if (action === 'pack') {
+        await ordersApi.packed(orderId);
+        Toast.show({ type: 'success', text1: 'Order marked as packed' });
       } else {
-        // Backend doesn't have a direct reject endpoint; cancel as workaround
         Toast.show({ type: 'info', text1: 'Order declined' });
       }
       loadOrders();
@@ -513,6 +556,7 @@ const FarmerOrdersScreen: React.FC = () => {
             onPress={() => navigation.navigate('FarmerOrderDetail', { orderId: item.id })}
             onAccept={() => openModal('accept', item.id)}
             onReject={() => openModal('reject', item.id)}
+            onPack={() => openModal('pack', item.id)}
           />
         )}
       />
