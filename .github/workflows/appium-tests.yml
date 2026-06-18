@@ -19,10 +19,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ANDROID_API_LEVEL: 34
-  ANDROID_TARGET: google_apis
-  ANDROID_ARCH: x86_64
-  AVD_NAME: Pixel_6_API_34
+  ANDROID_API_LEVEL: 29
+  ANDROID_TARGET: default
+  ANDROID_ARCH: x86
+  AVD_NAME: Pixel_4_API_29
   JAVA_VERSION: '17'
   NODE_VERSION: '24'
   APK_PATH: android/app/build/outputs/apk/release/app-release.apk
@@ -80,8 +80,9 @@ jobs:
           arch: ${{ env.ANDROID_ARCH }}
           avd-name: ${{ env.AVD_NAME }}
           force-avd-creation: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save -camera-back none
           disable-animations: true
+          emulator-boot-timeout: 300
           script: echo "AVD created"
 
       # ── 7. Install Node dependencies ─────────────────────────────────────────
@@ -118,8 +119,9 @@ jobs:
           target: ${{ env.ANDROID_TARGET }}
           arch: ${{ env.ANDROID_ARCH }}
           avd-name: ${{ env.AVD_NAME }}
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save -camera-back none
           disable-animations: true
+          emulator-boot-timeout: 300
           script: |
             # Wait for emulator to be fully ready
             adb wait-for-device
