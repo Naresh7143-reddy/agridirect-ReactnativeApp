@@ -1,0 +1,350 @@
+name: 📱 AgriDirect Mobile Automation Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'all'
+        type: choice
+        options: [all, auth, buyer, farmer, delivery, e2e]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ANDROID_API_LEVEL: 34
+  ANDROID_TARGET: google_apis
+  ANDROID_ARCH: x86_64
+  AVD_NAME: Pixel_6_API_34
+  JAVA_VERSION: '17'
+  NODE_VERSION: '20'
+  APK_PATH: android/app/build/outputs/apk/release/app-release.apk
+
+jobs:
+  appium-tests:
+    name: 🤖 Appium Android Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Java ────────────────────────────────────────────────────────
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      # ── 3. Setup Node.js ─────────────────────────────────────────────────────
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: appium-tests/package-lock.json
+
+      # ── 4. Setup Android SDK ─────────────────────────────────────────────────
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # ── 5. Cache AVD ─────────────────────────────────────────────────────────
+      - name: Cache AVD snapshot
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ env.ANDROID_API_LEVEL }}-${{ env.ANDROID_TARGET }}-${{ env.ANDROID_ARCH }}
+
+      # ── 6. Create AVD (if not cached) ────────────────────────────────────────
+      - name: Create AVD
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.ANDROID_API_LEVEL }}
+          target: ${{ env.ANDROID_TARGET }}
+          arch: ${{ env.ANDROID_ARCH }}
+          avd-name: ${{ env.AVD_NAME }}
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: echo "AVD created"
+
+      # ── 7. Install Node dependencies ─────────────────────────────────────────
+      - name: Install Appium framework dependencies
+        working-directory: appium-tests
+        run: npm ci
+
+      # ── 8. Install Appium + UiAutomator2 ─────────────────────────────────────
+      - name: Install Appium server and drivers
+        run: |
+          npm install -g appium@latest
+          appium driver install uiautomator2
+          appium driver list --installed
+
+      # ── 9. Build APK ─────────────────────────────────────────────────────────
+      - name: Build release APK
+        id: build_apk
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease \
+            -x test \
+            --no-daemon \
+            --stacktrace
+        env:
+          JAVA_OPTS: "-Xmx4g"
+
+      # ── 10. Run tests with Android Emulator ──────────────────────────────────
+      - name: Run Appium tests on Android Emulator
+        id: run_tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.ANDROID_API_LEVEL }}
+          target: ${{ env.ANDROID_TARGET }}
+          arch: ${{ env.ANDROID_ARCH }}
+          avd-name: ${{ env.AVD_NAME }}
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            # Wait for emulator to be fully ready
+            adb wait-for-device
+            adb shell input keyevent 82
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+
+            echo "Emulator ready. Installing APK..."
+            adb install -r ${{ env.APK_PATH }}
+
+            echo "Starting Appium server..."
+            appium --port 4723 --log appium-tests/logs/appium.log --relaxed-security &
+            sleep 5
+
+            echo "Running tests..."
+            SUITE="${{ github.event.inputs.test_suite || 'all' }}"
+            cd appium-tests
+
+            if [ "$SUITE" = "all" ]; then
+              npx wdio run config/wdio.ci.conf.ts || echo "TESTS_FAILED=true" >> $GITHUB_ENV
+            else
+              npx wdio run config/wdio.ci.conf.ts --spec tests/$SUITE || echo "TESTS_FAILED=true" >> $GITHUB_ENV
+            fi
+        env:
+          APK_PATH: ${{ github.workspace }}/${{ env.APK_PATH }}
+        continue-on-error: true
+
+      # ── 11. Generate Reports ──────────────────────────────────────────────────
+      - name: Generate test reports
+        if: always()
+        working-directory: appium-tests
+        run: |
+          mkdir -p reports screenshots videos logs
+          npx ts-node utilities/generateJsonReport.ts  || echo "JSON report failed"
+          npx ts-node utilities/generateExcelReport.ts || echo "Excel report failed"
+          npx ts-node utilities/generateHtmlReport.ts  || echo "HTML report failed"
+          npx ts-node utilities/generatePdfReport.ts   || echo "PDF report failed"
+        continue-on-error: true
+
+      # ── 12. Publish GitHub Actions Summary ───────────────────────────────────
+      - name: Publish GitHub Actions Summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // ── Parse test results ────────────────────────────────────────────
+            let suites = [], allTests = [];
+            try {
+              const raw = JSON.parse(fs.readFileSync('appium-tests/reports/wdio-results.json', 'utf8'));
+              suites = raw.suites || [];
+              allTests = suites.flatMap(s => (s.tests || []).map(t => ({ ...t, suite: s.title })));
+            } catch (e) {
+              console.log('No results JSON found — using placeholder');
+              suites = [];
+              allTests = [];
+            }
+
+            const total   = allTests.length;
+            const passed  = allTests.filter(t => t.state === 'passed').length;
+            const failed  = allTests.filter(t => t.state === 'failed').length;
+            const skipped = allTests.filter(t => t.state === 'skipped' || t.state === 'pending').length;
+            const passRate = total ? ((passed / total) * 100).toFixed(1) : '0';
+            const totalMs = allTests.reduce((s, t) => s + (t.duration || 0), 0);
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const commitUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/commit/${context.sha}`;
+            const branch = context.ref.replace('refs/heads/', '');
+            const shortSha = context.sha.slice(0, 7);
+            const overallIcon = failed > 0 ? '❌' : total === 0 ? '⚠️' : '✅';
+            const overallLabel = failed > 0 ? `${failed} test(s) FAILED` : total === 0 ? 'No tests executed' : 'All tests PASSED';
+            const healthScore = total === 0 ? 0 : Math.round((passed / total) * 100);
+            const releaseRec = healthScore >= 90 ? '🟢 RELEASE RECOMMENDED' :
+                               healthScore >= 70 ? '🟡 RELEASE WITH CAUTION' : '🔴 DO NOT RELEASE';
+
+            const passBar = (p, t) => {
+              if (!t) return '`no tests`';
+              const pct = Math.round((p / t) * 20);
+              return '`' + '█'.repeat(pct) + '░'.repeat(20-pct) + '`' + ` ${Math.round(p/t*100)}%`;
+            };
+            const fmtMs = ms => ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(2)}s`;
+
+            // ── Suite breakdown ────────────────────────────────────────────────
+            const suiteMap = {};
+            allTests.forEach(t => {
+              if (!suiteMap[t.suite]) suiteMap[t.suite] = {p:0,f:0,s:0,dur:0};
+              suiteMap[t.suite].dur += t.duration || 0;
+              if (t.state === 'passed') suiteMap[t.suite].p++;
+              else if (t.state === 'failed') suiteMap[t.suite].f++;
+              else suiteMap[t.suite].s++;
+            });
+
+            const suiteRows = Object.entries(suiteMap).map(([mod, d]) => {
+              const tot = d.p+d.f+d.s;
+              const icon = d.f > 0 ? '❌' : '✅';
+              return `| ${icon} ${mod} | ${tot} | ${d.p} | ${d.f} | ${d.s} | ${passBar(d.p,tot)} | ${fmtMs(d.dur)} |`;
+            }).join('\n') || '| — | 0 | 0 | 0 | 0 | `no tests` | — |';
+
+            // ── Failed test details ────────────────────────────────────────────
+            const failedTests = allTests.filter(t => t.state === 'failed');
+            let failedSection = '';
+            if (failedTests.length > 0) {
+              failedSection = `\n## ❌ Failed Tests\n\n| Suite | Test | Error |\n|-------|------|-------|\n`;
+              failedTests.forEach(t => {
+                const err = (t.error?.message || '').replace(/\n/g,' ').slice(0,100);
+                failedSection += `| \`${t.suite}\` | ${t.title} | ${err || '—'} |\n`;
+              });
+            }
+
+            // ── All tests collapsible ──────────────────────────────────────────
+            let allTestsSection = '';
+            if (allTests.length > 0) {
+              allTestsSection = `\n<details>\n<summary>📋 All Tests (${total})</summary>\n\n| # | Suite | Test | Status | Duration |\n|---|-------|------|--------|----------|\n`;
+              allTests.forEach((t, i) => {
+                const icon = t.state === 'passed' ? '✅' : t.state === 'failed' ? '❌' : '⏭';
+                allTestsSection += `| ${i+1} | \`${t.suite}\` | ${t.title} | ${icon} ${(t.state||'skip').toUpperCase()} | ${fmtMs(t.duration||0)} |\n`;
+              });
+              allTestsSection += '\n</details>\n';
+            }
+
+            // ── Compose summary ────────────────────────────────────────────────
+            let md = `# ${overallIcon} AgriDirect — Mobile Test Report\n\n`;
+            md += `> **${overallLabel}** &nbsp;|&nbsp; Run [#${context.runNumber}](${runUrl}) &nbsp;|&nbsp; `;
+            md += `Branch \`${branch}\` &nbsp;|&nbsp; Commit [\`${shortSha}\`](${commitUrl})\n\n---\n\n`;
+
+            md += `## 📊 Overall Results\n\n`;
+            md += `| Metric | Value |\n|--------|-------|\n`;
+            md += `| 🧪 Total Tests | **${total}** |\n`;
+            md += `| ✅ Passed | **${passed}** |\n`;
+            md += `| ❌ Failed | **${failed}** |\n`;
+            md += `| ⏭ Skipped | **${skipped}** |\n`;
+            md += `| 📈 Pass Rate | ${passBar(passed, total)} |\n`;
+            md += `| ⏱ Duration | ${fmtMs(totalMs)} |\n`;
+            md += `| 🏥 Health Score | **${healthScore}/100** |\n`;
+            md += `| 🚀 Recommendation | **${releaseRec}** |\n\n`;
+
+            md += `## 📦 Module-wise Results\n\n`;
+            md += `| Module | Total | ✅ | ❌ | ⏭ | Pass Rate | Duration |\n`;
+            md += `|--------|------:|--:|--:|--:|-----------|----------|\n`;
+            md += suiteRows + '\n\n';
+
+            md += `## ⚙️ Build Information\n\n`;
+            md += `| Key | Value |\n|-----|-------|\n`;
+            md += `| 📱 App | AgriDirect Android |\n`;
+            md += `| 🤖 Framework | Appium + WebDriverIO + TypeScript |\n`;
+            md += `| 🖥 Platform | Android API ${process.env.ANDROID_API_LEVEL || 34} |\n`;
+            md += `| 👤 Actor | [@${context.actor}](${context.serverUrl}/${context.actor}) |\n`;
+            md += `| 🔀 Branch | \`${branch}\` |\n`;
+            md += `| 📦 Commit | [\`${shortSha}\`](${commitUrl}) |\n`;
+            md += `| 🗓 Run | [#${context.runNumber}](${runUrl}) |\n\n`;
+
+            md += `## 📎 Artifacts\n\n`;
+            md += `| Report | Description |\n|--------|-------------|\n`;
+            md += `| 📊 Excel Report | Detailed test results with module breakdown |\n`;
+            md += `| 🌐 HTML Dashboard | Interactive test dashboard with charts |\n`;
+            md += `| 📄 PDF Report | Executive summary for stakeholders |\n`;
+            md += `| 📸 Screenshots | Test step screenshots + failure captures |\n`;
+            md += `| 🎥 Videos | Screen recordings of test execution |\n`;
+            md += `| 📋 Appium Logs | Appium server execution logs |\n\n`;
+            md += `> 💡 Download all artifacts from [Run #${context.runNumber}](${runUrl}#artifacts)\n`;
+
+            md += failedSection;
+            md += allTestsSection;
+
+            md += `\n---\n`;
+            if (failed === 0 && total > 0) {
+              md += `> 🎉 **Perfect run!** All ${total} tests passed. ${releaseRec}\n`;
+            } else if (total === 0) {
+              md += `> ⚠️ **No tests executed.** APK build may have failed or emulator did not start in time.\n`;
+            } else {
+              md += `> ⚠️ **${failed} test(s) failed.** Review the failures above before release.\n`;
+            }
+
+            await core.summary.addRaw(md).write();
+
+      # ── 13. Upload all artifacts ──────────────────────────────────────────────
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ github.run_number }}
+          path: |
+            appium-tests/reports/*.xlsx
+            appium-tests/reports/*.html
+            appium-tests/reports/*.pdf
+            appium-tests/reports/*.json
+          retention-days: 30
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ github.run_number }}
+          path: appium-tests/screenshots/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: videos-${{ github.run_number }}
+          path: appium-tests/videos/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ github.run_number }}
+          path: appium-tests/logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # ── 14. Final status ──────────────────────────────────────────────────────
+      - name: Fail if tests failed
+        if: always()
+        run: |
+          if [ "${TESTS_FAILED:-}" = "true" ]; then
+            echo "❌ One or more Appium tests failed."
+            exit 1
+          fi
+          echo "✅ All tests passed or no failures detected."
