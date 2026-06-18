@@ -59,6 +59,7 @@ export interface FarmerDashboard {
   activeProducts: number;
   pendingOrders: number;
   acceptedOrders: number;
+  deliveredOrders: number;
   averageRating: number;
   revenueByMonth: RevenueByMonth[];
   topProducts: TopProduct[];

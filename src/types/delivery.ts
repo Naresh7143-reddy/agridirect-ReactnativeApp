@@ -60,7 +60,7 @@ export interface DeliveryOrder {
   pickupAddress: string;
   pickupLat?: number;
   pickupLng?: number;
-  dropAddress: DeliveryAddress;
+  dropAddress: string | DeliveryAddress;
   dropLat?: number;
   dropLng?: number;
   estimatedDelivery: string;

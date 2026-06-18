@@ -1,41 +1,81 @@
-// FILE: src/screens/delivery/DeliveryHomeScreen.tsx
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  ActivityIndicator,
+  Animated, Dimensions, Linking, ScrollView, StyleSheet,
+  Text, TouchableOpacity, View, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
+import Icon from 'react-native-vector-icons/Ionicons';
 import { Colors } from '../../theme/colors';
-import { shadow, borderRadius } from '../../theme/spacing';
+import { shadow, borderRadius, spacing } from '../../theme/spacing';
 import { deliveryApi } from '../../api/delivery';
 import type { DeliveryOrder } from '../../types/delivery';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+function formatAddr(addr: string | any): string {
+  if (!addr) return 'Address not available';
+  if (typeof addr === 'string') return addr;
+  return [addr.line1, addr.city, addr.state].filter(Boolean).join(', ');
+}
+
+function ContactCard({
+  icon, color, label, name, phone, address,
+}: {
+  icon: string; color: string; label: string;
+  name?: string; phone?: string; address?: string;
+}) {
+  return (
+    <View style={[cc.wrap, { borderLeftColor: color }]}>
+      <Text style={cc.label}>{label}</Text>
+      {name ? (
+        <View style={cc.row}>
+          <Icon name="person-outline" size={13} color={Colors.textSecondary} />
+          <Text style={cc.name}>{name}</Text>
+        </View>
+      ) : null}
+      {phone ? (
+        <TouchableOpacity style={cc.row} onPress={() => Linking.openURL(`tel:${phone}`)}>
+          <Icon name="call-outline" size={13} color={Colors.success} />
+          <Text style={[cc.phone, { color: Colors.success }]}>{phone}</Text>
+        </TouchableOpacity>
+      ) : null}
+      {address ? (
+        <View style={cc.row}>
+          <Icon name="location-outline" size={13} color={Colors.textSecondary} />
+          <Text style={cc.addr} numberOfLines={2}>{address}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const cc = StyleSheet.create({
+  wrap: { borderLeftWidth: 3, paddingLeft: 10, marginBottom: 10, backgroundColor: Colors.background, borderRadius: borderRadius.sm, padding: 10 },
+  label: { fontSize: 10, fontWeight: '700', color: Colors.textHint, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
+  name: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+  phone: { fontSize: 13, fontWeight: '600' },
+  addr: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
+});
 
 export const DeliveryHomeScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
-  const [isOnline, setIsOnline] = useState(false);
-  const [togglingOnline, setTogglingOnline] = useState(false);
-  const [orders, setOrders] = useState<DeliveryOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeOrder, setActiveOrder] = useState<DeliveryOrder | null>(null);
-  const [newOrder, setNewOrder] = useState<DeliveryOrder | null>(null);
-  const [countdown, setCountdown] = useState(30);
+  const [isOnline, setIsOnline]         = useState(false);
+  const [togglingOnline, setToggling]   = useState(false);
+  const [available, setAvailable]       = useState<DeliveryOrder[]>([]);
+  const [assigned, setAssigned]         = useState<DeliveryOrder[]>([]);
+  const [earnings, setEarnings]         = useState<any>(null);
+  const [loading, setLoading]           = useState(true);
+  const [refreshing, setRefreshing]     = useState(false);
+  const [claimingId, setClaimingId]     = useState<string | null>(null);
+  const [updatingId, setUpdatingId]     = useState<string | null>(null);
 
   const toggleScale = useRef(new Animated.Value(1)).current;
-  const toggleBg = useRef(new Animated.Value(0)).current;
-  const newOrderSlide = useRef(new Animated.Value(-200)).current;
-  const pulse = useRef(new Animated.Value(1)).current;
+  const toggleBg    = useRef(new Animated.Value(0)).current;
+  const pulse       = useRef(new Animated.Value(1)).current;
 
-  // Pulse for online map dot
   useEffect(() => {
     if (isOnline) {
       const anim = Animated.loop(
@@ -50,92 +90,79 @@ export const DeliveryHomeScreen: React.FC = () => {
     return undefined;
   }, [isOnline, pulse]);
 
-  // New order countdown
-  useEffect(() => {
-    if (!newOrder) return;
-    setCountdown(30);
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setNewOrder(null);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [newOrder]);
-
-  useEffect(() => {
-    if (newOrder) {
-      Animated.spring(newOrderSlide, { toValue: 0, useNativeDriver: true, tension: 60 }).start();
-    } else {
-      Animated.timing(newOrderSlide, { toValue: -200, duration: 200, useNativeDriver: true }).start();
-    }
-  }, [newOrder, newOrderSlide]);
-
-  const loadOrders = useCallback(async () => {
+  const loadData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
     try {
-      const res: any = await deliveryApi.getAssignedOrders({ status: 'IN_TRANSIT' as any });
-      const list: DeliveryOrder[] = res.data || [];
-      setOrders(list);
-      const active = list.find((o) => ['PICKED_UP', 'IN_TRANSIT'].includes((o as any).status));
-      setActiveOrder(active || null);
-      // Simulate new order alert for demo
-      const pending = list.find((o) => (o as any).status === 'PACKED');
-      if (pending && isOnline) setNewOrder(pending);
+      const [availRes, assignRes, earningsRes] = await Promise.all([
+        deliveryApi.getAvailableOrders().catch(() => ({ data: [] } as any)),
+        deliveryApi.getAssignedOrders().catch(() => ({ data: [] } as any)),
+        deliveryApi.getEarnings().catch(() => ({ data: null } as any)),
+      ]);
+      setAvailable(Array.isArray((availRes as any).data) ? (availRes as any).data : []);
+      const assignedList = (assignRes as any).data?.items ?? (assignRes as any).data ?? [];
+      setAssigned(Array.isArray(assignedList) ? assignedList : []);
+      setEarnings((earningsRes as any).data);
     } catch {}
-    finally { setLoading(false); }
-  }, [isOnline]);
+    finally { setLoading(false); setRefreshing(false); }
+  }, []);
 
-  useEffect(() => { if (isOnline) loadOrders(); }, [isOnline, loadOrders]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const toggleOnline = useCallback(async () => {
-    setTogglingOnline(true);
+    setToggling(true);
     Animated.sequence([
       Animated.spring(toggleScale, { toValue: 0.9, useNativeDriver: true }),
       Animated.spring(toggleScale, { toValue: 1, useNativeDriver: true }),
     ]).start();
-    Animated.timing(toggleBg, {
-      toValue: isOnline ? 0 : 1,
-      duration: 400,
-      useNativeDriver: false,
-    }).start();
+    Animated.timing(toggleBg, { toValue: isOnline ? 0 : 1, duration: 400, useNativeDriver: false }).start();
     try {
       await deliveryApi.updateAvailability(!isOnline);
-      setIsOnline(!isOnline);
-    } catch { }
-    finally { setTimeout(() => setTogglingOnline(false), 500); }
+      setIsOnline(prev => !prev);
+    } catch {}
+    finally { setTimeout(() => setToggling(false), 500); }
   }, [isOnline, toggleScale, toggleBg]);
 
-  const bgColor = toggleBg.interpolate({
-    inputRange: [0, 1],
-    outputRange: [Colors.error, Colors.primary],
-  });
+  const claimOrder = async (orderId: string) => {
+    setClaimingId(orderId);
+    try {
+      await deliveryApi.claimOrder(orderId);
+      loadData();
+    } catch (e: any) {
+      Alert.alert('Could not claim', e?.response?.data?.message ?? 'Try again');
+    } finally { setClaimingId(null); }
+  };
 
-  // Earnings stats (mock)
-  const stats = [
-    { label: 'Deliveries', value: '5', icon: '📦' },
-    { label: 'Distance', value: '23 km', icon: '📍' },
-    { label: 'Earned', value: '₹340', icon: '💰' },
-  ];
+  const updateStatus = async (orderId: string, status: string, label: string) => {
+    Alert.alert('Update Status', `Mark as "${label}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Confirm', onPress: async () => {
+        setUpdatingId(orderId);
+        try {
+          await deliveryApi.updateOrderStatus(orderId, status as any);
+          loadData();
+        } catch { Alert.alert('Error', 'Could not update status'); }
+        finally { setUpdatingId(null); }
+      }},
+    ]);
+  };
+
+  const bgColor = toggleBg.interpolate({ inputRange: [0, 1], outputRange: [Colors.error, Colors.primary] });
+
+  const activeDelivery = assigned.find(o => ['assigned','picked_up','in_transit'].includes(o.status));
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <LinearGradient colors={Colors.gradientGreen} style={styles.header}>
         <Text style={styles.headerTitle}>AgriDirect Delivery</Text>
         <Text style={styles.headerSub}>{isOnline ? '🟢 Online — Ready for orders' : '🔴 Offline'}</Text>
       </LinearGradient>
 
-      {/* Map Placeholder */}
-      <View style={[styles.mapPlaceholder, !isOnline && styles.mapPlaceholderOffline]}>
+      {/* Online/offline map area */}
+      <View style={[styles.mapPlaceholder, !isOnline && styles.mapOffline]}>
         {isOnline ? (
           <>
-            <Text style={styles.mapLabel}>Live Map</Text>
             <Animated.View style={[styles.mapPulse, { transform: [{ scale: pulse }] }]} />
-            <Text style={styles.mapOnlineText}>You are visible to farmers</Text>
+            <Text style={styles.mapOnlineText}>You are visible to farmers nearby</Text>
           </>
         ) : (
           <>
@@ -146,60 +173,32 @@ export const DeliveryHomeScreen: React.FC = () => {
         )}
       </View>
 
-      {/* Toggle Pill */}
+      {/* Toggle pill */}
       <View style={styles.toggleWrap}>
         <Animated.View style={{ transform: [{ scale: toggleScale }] }}>
           <TouchableOpacity onPress={toggleOnline} disabled={togglingOnline} activeOpacity={0.9}>
             <Animated.View style={[styles.togglePill, { backgroundColor: bgColor }]}>
-              {togglingOnline ? (
-                <Text style={styles.toggleText}>Going {isOnline ? 'Offline' : 'Online'}...</Text>
-              ) : (
-                <Text style={styles.toggleText}>
-                  {isOnline ? '🔴  Go Offline' : '🟢  Go Online'}
-                </Text>
-              )}
+              <Text style={styles.toggleText}>
+                {togglingOnline ? 'Please wait...' : isOnline ? '🔴  Go Offline' : '🟢  Go Online'}
+              </Text>
             </Animated.View>
           </TouchableOpacity>
         </Animated.View>
       </View>
 
-      {/* New Order Alert */}
-      {newOrder && (
-        <Animated.View style={[styles.newOrderCard, { transform: [{ translateY: newOrderSlide }] }]}>
-          <View style={styles.newOrderHeader}>
-            <Text style={styles.newOrderTitle}>🆕 New Order!</Text>
-            <View style={styles.countdownCircle}>
-              <Text style={styles.countdownText}>{countdown}s</Text>
-            </View>
-          </View>
-          <Text style={styles.newOrderSub}>Pickup from farmer • Deliver to customer</Text>
-          <Text style={styles.newOrderEarning}>Earn ₹{(40 + Math.random() * 30).toFixed(0)}</Text>
-          <View style={styles.newOrderActions}>
-            <TouchableOpacity
-              style={styles.declineBtn}
-              onPress={() => setNewOrder(null)}
-            >
-              <Text style={styles.declineBtnText}>Decline</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.acceptBtn}
-              onPress={() => {
-                setActiveOrder(newOrder);
-                setNewOrder(null);
-                navigation.navigate('DeliveryOrderDetail', { orderId: newOrder.id || (newOrder as any).orderId });
-              }}
-            >
-              <Text style={styles.acceptBtnText}>Accept ✓</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      )}
-
-      <ScrollView style={styles.bottomContent} showsVerticalScrollIndicator={false}>
-        {/* Today's Stats */}
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadData(true)} tintColor={Colors.primary} />}
+      >
+        {/* Today's earnings stats */}
         <Text style={styles.sectionTitle}>Today's Stats</Text>
         <View style={styles.statsRow}>
-          {stats.map((s) => (
+          {[
+            { icon: '📦', label: 'Deliveries', value: String(earnings?.todayDeliveries ?? assigned.filter(o => o.status === 'delivered').length) },
+            { icon: '💰', label: 'Earned Today', value: `₹${earnings?.today ?? 0}` },
+            { icon: '💵', label: 'This Month', value: `₹${earnings?.thisMonth ?? 0}` },
+          ].map(s => (
             <View key={s.label} style={styles.statCard}>
               <Text style={styles.statIcon}>{s.icon}</Text>
               <Text style={styles.statValue}>{s.value}</Text>
@@ -208,22 +207,137 @@ export const DeliveryHomeScreen: React.FC = () => {
           ))}
         </View>
 
-        {/* Active Delivery */}
-        {activeOrder && (
+        {/* Active delivery banner */}
+        {activeDelivery && (
           <TouchableOpacity
-            style={styles.activeDeliveryCard}
-            onPress={() => navigation.navigate('DeliveryNavigation', {
-              orderId: (activeOrder as any).id,
-              pickupLat: 0, pickupLng: 0, dropLat: 0, dropLng: 0,
-            })}
+            style={styles.activeCard}
+            onPress={() => navigation.navigate('DeliveryOrderDetail', { orderId: activeDelivery.id || (activeDelivery as any).orderId })}
+            activeOpacity={0.85}
           >
-            <LinearGradient colors={Colors.gradientGreen} style={styles.activeDeliveryGradient}>
-              <Text style={styles.activeDeliveryTitle}>🚀 Active Delivery</Text>
-              <Text style={styles.activeDeliveryId}>Order #{(activeOrder as any).orderNumber || 'ONGOING'}</Text>
-              <Text style={styles.activeDeliveryAction}>Tap to navigate →</Text>
+            <LinearGradient colors={Colors.gradientGreen} style={styles.activeGradient}>
+              <Text style={styles.activeTitle}>🚀 Active Delivery</Text>
+              <Text style={styles.activeId}>Order #{activeDelivery.orderNumber || 'ONGOING'}</Text>
+              <Text style={styles.activeStatus}>{activeDelivery.status.replace(/_/g, ' ').toUpperCase()}</Text>
+
+              <View style={{ marginTop: 12, gap: 6 }}>
+                <View style={styles.activeRow}>
+                  <Icon name="person-outline" size={13} color="rgba(255,255,255,0.8)" />
+                  <Text style={styles.activeRowText}>Farmer: {activeDelivery.farmerName || '—'}</Text>
+                  {activeDelivery.farmerPhone ? (
+                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${activeDelivery.farmerPhone}`)}>
+                      <Icon name="call" size={14} color={Colors.white} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+                <View style={styles.activeRow}>
+                  <Icon name="location-outline" size={13} color="rgba(255,255,255,0.8)" />
+                  <Text style={styles.activeRowText} numberOfLines={1}>Pickup: {activeDelivery.pickupAddress || '—'}</Text>
+                </View>
+                <View style={styles.activeRow}>
+                  <Icon name="person-outline" size={13} color="rgba(255,255,255,0.8)" />
+                  <Text style={styles.activeRowText}>Buyer: {activeDelivery.buyerName || '—'}</Text>
+                  {activeDelivery.buyerPhone ? (
+                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${activeDelivery.buyerPhone}`)}>
+                      <Icon name="call" size={14} color={Colors.white} />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+                <View style={styles.activeRow}>
+                  <Icon name="home-outline" size={13} color="rgba(255,255,255,0.8)" />
+                  <Text style={styles.activeRowText} numberOfLines={1}>Drop: {formatAddr(activeDelivery.dropAddress)}</Text>
+                </View>
+              </View>
+
+              {/* Status action */}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                {activeDelivery.status === 'assigned' && (
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => updateStatus(activeDelivery.id || (activeDelivery as any).orderId, 'PICKED_UP', 'Picked Up')}
+                    disabled={updatingId === activeDelivery.id}
+                  >
+                    {updatingId === activeDelivery.id ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.actionBtnText}>📦 Mark Picked Up</Text>}
+                  </TouchableOpacity>
+                )}
+                {(activeDelivery.status === 'picked_up' || activeDelivery.status === 'in_transit') && (
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: Colors.success }]}
+                    onPress={() => updateStatus(activeDelivery.id || (activeDelivery as any).orderId, 'DELIVERED', 'Delivered')}
+                    disabled={updatingId === activeDelivery.id}
+                  >
+                    {updatingId === activeDelivery.id ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.actionBtnText}>✅ Mark Delivered</Text>}
+                  </TouchableOpacity>
+                )}
+              </View>
             </LinearGradient>
           </TouchableOpacity>
         )}
+
+        {/* Available orders pool */}
+        <Text style={styles.sectionTitle}>
+          Available Orders ({available.length})
+        </Text>
+        {loading ? (
+          <ActivityIndicator color={Colors.primary} style={{ marginVertical: 20 }} />
+        ) : available.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyIcon}>📭</Text>
+            <Text style={styles.emptyText}>No available orders right now</Text>
+            <Text style={styles.emptySub}>Pull to refresh</Text>
+          </View>
+        ) : (
+          available.map(order => (
+            <View key={order.id || (order as any).orderId} style={styles.orderCard}>
+              {/* Header */}
+              <View style={styles.cardHeader}>
+                <Text style={styles.orderNum}>#{String(order.id || (order as any).orderId || '').slice(0, 8).toUpperCase()}</Text>
+                <View style={styles.earnBadge}>
+                  <Text style={styles.earnBadgeText}>Earn ₹{(order.deliveryFee ?? 0).toFixed(0)}</Text>
+                </View>
+              </View>
+
+              {/* Meta */}
+              <View style={styles.metaRow}>
+                {(order as any).itemCount ? <Text style={styles.metaChip}>{(order as any).itemCount} items</Text> : null}
+                {order.distance ? <Text style={styles.metaChip}>{order.distance.toFixed(1)} km</Text> : null}
+                <Text style={styles.metaChip}>₹{((order as any).totalAmount ?? 0).toFixed(0)} order</Text>
+              </View>
+
+              {/* Farmer contact */}
+              <ContactCard
+                icon="leaf-outline"
+                color={Colors.warning}
+                label="📦 Pickup — Farmer"
+                name={order.farmerName}
+                phone={order.farmerPhone}
+                address={order.pickupAddress}
+              />
+
+              {/* Buyer contact */}
+              <ContactCard
+                icon="home-outline"
+                color={Colors.primary}
+                label="🏠 Drop — Buyer"
+                name={order.buyerName}
+                phone={order.buyerPhone}
+                address={formatAddr(order.dropAddress)}
+              />
+
+              {/* Claim */}
+              <TouchableOpacity
+                style={[styles.claimBtn, claimingId === (order.id || (order as any).orderId) && { opacity: 0.6 }]}
+                onPress={() => claimOrder(order.id || (order as any).orderId)}
+                disabled={claimingId === (order.id || (order as any).orderId)}
+                activeOpacity={0.85}
+              >
+                {claimingId === (order.id || (order as any).orderId)
+                  ? <ActivityIndicator color={Colors.white} size="small" />
+                  : <Text style={styles.claimBtnText}>Claim Order</Text>}
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
+        <View style={{ height: 32 }} />
       </ScrollView>
     </View>
   );
@@ -236,39 +350,43 @@ const styles = StyleSheet.create({
   header: { paddingTop: 50, paddingBottom: 16, paddingHorizontal: 16 },
   headerTitle: { color: Colors.white, fontSize: 22, fontWeight: '800' },
   headerSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 2 },
-  mapPlaceholder: { height: 220, backgroundColor: '#C8E6C9', alignItems: 'center', justifyContent: 'center' },
-  mapPlaceholderOffline: { backgroundColor: Colors.divider },
-  mapLabel: { fontSize: 14, color: Colors.primary, fontWeight: '600', marginBottom: 12, opacity: 0.6 },
+  mapPlaceholder: { height: 160, backgroundColor: '#C8E6C9', alignItems: 'center', justifyContent: 'center' },
+  mapOffline: { backgroundColor: Colors.divider },
   mapPulse: { width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.primary, ...shadow.md },
-  mapOnlineText: { fontSize: 12, color: Colors.primary, marginTop: 12, opacity: 0.7 },
-  offlineIcon: { fontSize: 48 },
-  offlineText: { fontSize: 18, fontWeight: '700', color: Colors.textHint, marginTop: 8 },
-  offlineSub: { fontSize: 13, color: Colors.textHint, marginTop: 4 },
-  toggleWrap: { alignItems: 'center', marginTop: -24, zIndex: 10 },
+  mapOnlineText: { fontSize: 12, color: Colors.primary, marginTop: 12, opacity: 0.8 },
+  offlineIcon: { fontSize: 40 },
+  offlineText: { fontSize: 17, fontWeight: '700', color: Colors.textHint, marginTop: 6 },
+  offlineSub: { fontSize: 13, color: Colors.textHint, marginTop: 2 },
+  toggleWrap: { alignItems: 'center', marginTop: -22, zIndex: 10 },
   togglePill: { borderRadius: borderRadius.full, paddingHorizontal: 40, paddingVertical: 14, ...shadow.lg },
   toggleText: { color: Colors.white, fontWeight: '800', fontSize: 16 },
-  newOrderCard: { position: 'absolute', top: 0, left: 16, right: 16, zIndex: 20, backgroundColor: Colors.white, borderRadius: borderRadius.xl, padding: 16, marginTop: 110, ...shadow.xl },
-  newOrderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  newOrderTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary },
-  countdownCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
-  countdownText: { fontSize: 14, fontWeight: '800', color: Colors.error },
-  newOrderSub: { fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
-  newOrderEarning: { fontSize: 18, fontWeight: '800', color: Colors.primary, marginBottom: 12 },
-  newOrderActions: { flexDirection: 'row', gap: 10 },
-  declineBtn: { flex: 1, borderRadius: borderRadius.md, paddingVertical: 12, alignItems: 'center', borderWidth: 2, borderColor: Colors.error },
-  declineBtnText: { color: Colors.error, fontWeight: '700', fontSize: 14 },
-  acceptBtn: { flex: 2, borderRadius: borderRadius.md, paddingVertical: 12, alignItems: 'center', backgroundColor: Colors.primary },
-  acceptBtnText: { color: Colors.white, fontWeight: '700', fontSize: 14 },
-  bottomContent: { flex: 1, padding: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12, marginTop: 16 },
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  statCard: { flex: 1, backgroundColor: Colors.white, borderRadius: borderRadius.lg, padding: 14, alignItems: 'center', ...shadow.sm },
-  statIcon: { fontSize: 24, marginBottom: 4 },
-  statValue: { fontSize: 18, fontWeight: '800', color: Colors.primary },
-  statLabel: { fontSize: 11, color: Colors.textHint, marginTop: 2 },
-  activeDeliveryCard: { borderRadius: borderRadius.lg, overflow: 'hidden', ...shadow.md, marginBottom: 24 },
-  activeDeliveryGradient: { padding: 16 },
-  activeDeliveryTitle: { color: Colors.white, fontSize: 14, fontWeight: '600', opacity: 0.9 },
-  activeDeliveryId: { color: Colors.white, fontSize: 20, fontWeight: '800', marginTop: 4 },
-  activeDeliveryAction: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 8 },
+  scroll: { flex: 1, padding: 16 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12, marginTop: 20 },
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
+  statCard: { flex: 1, backgroundColor: Colors.white, borderRadius: borderRadius.lg, padding: 12, alignItems: 'center', ...shadow.sm },
+  statIcon: { fontSize: 22, marginBottom: 4 },
+  statValue: { fontSize: 15, fontWeight: '800', color: Colors.primary },
+  statLabel: { fontSize: 10, color: Colors.textHint, marginTop: 2, textAlign: 'center' },
+  activeCard: { borderRadius: borderRadius.xl, overflow: 'hidden', ...shadow.md, marginBottom: 8 },
+  activeGradient: { padding: 16 },
+  activeTitle: { color: Colors.white, fontSize: 13, fontWeight: '600', opacity: 0.9 },
+  activeId: { color: Colors.white, fontSize: 20, fontWeight: '800', marginTop: 2 },
+  activeStatus: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 },
+  activeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  activeRowText: { flex: 1, color: 'rgba(255,255,255,0.9)', fontSize: 12 },
+  actionBtn: { flex: 1, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: borderRadius.md, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
+  actionBtnText: { color: Colors.white, fontWeight: '700', fontSize: 13 },
+  emptyCard: { backgroundColor: Colors.white, borderRadius: borderRadius.lg, padding: 32, alignItems: 'center', ...shadow.sm },
+  emptyIcon: { fontSize: 40, marginBottom: 8 },
+  emptyText: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
+  emptySub: { fontSize: 12, color: Colors.textHint, marginTop: 4 },
+  orderCard: { backgroundColor: Colors.white, borderRadius: borderRadius.xl, padding: 14, marginBottom: 14, ...shadow.md },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  orderNum: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
+  earnBadge: { backgroundColor: Colors.successLight, borderRadius: borderRadius.full, paddingHorizontal: 10, paddingVertical: 4 },
+  earnBadgeText: { color: Colors.success, fontSize: 12, fontWeight: '700' },
+  metaRow: { flexDirection: 'row', gap: 6, marginBottom: 10, flexWrap: 'wrap' },
+  metaChip: { backgroundColor: Colors.background, borderRadius: borderRadius.full, paddingHorizontal: 10, paddingVertical: 3, fontSize: 11, color: Colors.textSecondary, fontWeight: '600' },
+  claimBtn: { backgroundColor: Colors.primary, borderRadius: borderRadius.lg, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
+  claimBtnText: { color: Colors.white, fontWeight: '700', fontSize: 15 },
 });

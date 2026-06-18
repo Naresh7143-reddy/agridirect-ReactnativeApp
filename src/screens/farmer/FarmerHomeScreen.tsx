@@ -246,7 +246,7 @@ const FarmerHomeScreen: React.FC = () => {
             iconBg={Colors.successLight}
             label="Active Products"
             value={String(dashboard?.activeProducts ?? products.length)}
-            onPress={() => navigation.navigate('AddProduct')}
+            onPress={() => navigation.navigate('MyProducts')}
           />
           <View style={{ width: 12 }} />
           <StatCard
@@ -257,6 +257,26 @@ const FarmerHomeScreen: React.FC = () => {
             value={(dashboard?.averageRating ?? 0).toFixed(1)}
           />
         </View>
+
+        {/* Orders breakdown */}
+        {(dashboard?.totalOrders ?? 0) > 0 && (
+          <View style={[styles.statsRow, { marginTop: 12 }]}>
+            <View style={[statStyles.card, { alignItems: 'center' }]}>
+              <Text style={[statStyles.value, { color: Colors.warning }]}>{dashboard?.pendingOrders ?? 0}</Text>
+              <Text style={statStyles.label}>Pending</Text>
+            </View>
+            <View style={{ width: 12 }} />
+            <View style={[statStyles.card, { alignItems: 'center' }]}>
+              <Text style={[statStyles.value, { color: Colors.primary }]}>{dashboard?.acceptedOrders ?? 0}</Text>
+              <Text style={statStyles.label}>Accepted</Text>
+            </View>
+            <View style={{ width: 12 }} />
+            <View style={[statStyles.card, { alignItems: 'center' }]}>
+              <Text style={[statStyles.value, { color: Colors.success }]}>{dashboard?.deliveredOrders ?? 0}</Text>
+              <Text style={statStyles.label}>Delivered</Text>
+            </View>
+          </View>
+        )}
 
         {(dashboard?.pendingOrders ?? 0) > 0 && (
           <TouchableOpacity

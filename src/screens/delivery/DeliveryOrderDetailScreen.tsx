@@ -120,8 +120,13 @@ export default function DeliveryOrderDetailScreen() {
             </TouchableOpacity>
           </View>
           <Text style={s.name}>{order.buyerName}</Text>
-          <Text style={s.addr}>{order.dropAddress.line1}, {order.dropAddress.city}</Text>
-          <Text style={s.addr}>{order.dropAddress.state} - {order.dropAddress.pincode}</Text>
+          {typeof order.dropAddress === 'string'
+            ? <Text style={s.addr}>{order.dropAddress}</Text>
+            : <>
+                <Text style={s.addr}>{order.dropAddress.line1}, {order.dropAddress.city}</Text>
+                <Text style={s.addr}>{order.dropAddress.state} - {order.dropAddress.pincode}</Text>
+              </>
+          }
         </View>
 
         {/* Earnings */}

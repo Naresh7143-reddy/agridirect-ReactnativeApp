@@ -47,7 +47,11 @@ function DeliveryCard({ order, onPress }: { order: DeliveryOrder; onPress: () =>
       <View style={s.divider}/>
       <View style={s.addrRow}>
         <Icon name="location-outline" size={14} color={Colors.primary}/>
-        <Text style={s.addrText} numberOfLines={1}>{order.dropAddress.line1}, {order.dropAddress.city}</Text>
+        <Text style={s.addrText} numberOfLines={1}>
+          {typeof order.dropAddress === 'string'
+            ? order.dropAddress
+            : `${order.dropAddress.line1}, ${order.dropAddress.city}`}
+        </Text>
       </View>
       <View style={s.addrRow}>
         <Icon name="leaf-outline" size={14} color={Colors.success}/>
