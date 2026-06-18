@@ -410,9 +410,12 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   // ── Load ────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    ordersApi.getOrderById(orderId)
-      .then((res) => setOrder(res.data))
-      .catch(() => Toast.show({ type: 'error', text1: 'Failed to load order' }))
+    ordersApi.getFarmerOrderById(orderId)
+      .then((res) => setOrder((res as any).data ?? res))
+      .catch((err) => {
+        console.log('FarmerOrderDetail error:', err?.response?.status, err?.response?.data);
+        Toast.show({ type: 'error', text1: 'Failed to load order', text2: err?.response?.data?.message ?? 'Please try again' });
+      })
       .finally(() => setLoading(false));
   }, [orderId]);
 
@@ -431,8 +434,8 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         await ordersApi.markPacked(orderId);
         Toast.show({ type: 'success', text1: 'Marked as packed ✓' });
       }
-      const res = await ordersApi.getOrderById(orderId);
-      setOrder(res.data);
+      const res = await ordersApi.getFarmerOrderById(orderId);
+      setOrder((res as any).data ?? res);
     } catch (e: any) {
       Toast.show({ type: 'error', text1: 'Action failed', text2: e?.message });
     }
@@ -509,6 +512,36 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         </View>
 
+        {/* Delivery agent info */}
+        {(order.deliveryAgentName || order.deliveryAgentId) && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Delivery Partner</Text>
+            <View style={styles.buyerRow}>
+              <View style={[styles.avatar, { backgroundColor: Colors.primary }]}>
+                <Icon name="bicycle" size={20} color={Colors.white} />
+              </View>
+              <View style={styles.buyerInfo}>
+                <Text style={styles.buyerName}>{order.deliveryAgentName ?? 'Assigned'}</Text>
+                <Text style={styles.buyerPhone}>
+                  {order.status === 'ASSIGNED' ? '🟡 Assigned' :
+                   order.status === 'PICKED_UP' ? '🚴 Picked Up' :
+                   order.status === 'IN_TRANSIT' || order.status === 'ON_THE_WAY' ? '🚀 On the Way' :
+                   order.status === 'DELIVERED' ? '✅ Delivered' : order.status}
+                </Text>
+              </View>
+              {(order as any).deliveryAgentPhone ? (
+                <TouchableOpacity
+                  style={styles.callBtn}
+                  onPress={() => Linking.openURL(`tel:${(order as any).deliveryAgentPhone}`)}
+                >
+                  <Icon name="call" size={18} color={Colors.white} />
+                  <Text style={styles.callTxt}>Call</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        )}
+
         {/* Buyer info */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Buyer Info</Text>
@@ -535,13 +568,15 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           <View style={styles.addressRow}>
             <Icon name="location-outline" size={16} color={Colors.primary} />
             <Text style={styles.addressTxt}>
-              {[
-                order.deliveryAddress.line1,
-                order.deliveryAddress.line2,
-                order.deliveryAddress.city,
-                order.deliveryAddress.state,
-                order.deliveryAddress.pincode,
-              ].filter(Boolean).join(', ')}
+              {typeof order.deliveryAddress === 'string'
+                ? order.deliveryAddress
+                : [
+                    (order.deliveryAddress as any).line1,
+                    (order.deliveryAddress as any).line2,
+                    (order.deliveryAddress as any).city,
+                    (order.deliveryAddress as any).state,
+                    (order.deliveryAddress as any).pincode,
+                  ].filter(Boolean).join(', ')}
             </Text>
           </View>
         </View>

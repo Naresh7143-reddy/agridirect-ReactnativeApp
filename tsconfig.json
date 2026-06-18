@@ -13,7 +13,7 @@
     "resolveJsonModule": true,
     "allowJs": true,
     "skipLibCheck": true,
-    "types": [],
+    "types": ["jest"],
     "baseUrl": ".",
     "paths": {
       "@components/*": ["src/components/*"],

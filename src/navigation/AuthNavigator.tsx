@@ -16,9 +16,13 @@ import RegistrationSuccessScreen from '../screens/auth/RegistrationSuccessScreen
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
-export const AuthNavigator: React.FC = () => (
+export const AuthNavigator: React.FC = () => {
+  const onboardingDone = require('../utils/storage').isOnboardingDone();
+  const initialRoute = onboardingDone ? 'AuthChoice' : 'Splash';
+
+  return (
   <Stack.Navigator
-    initialRouteName="Splash"
+    initialRouteName={initialRoute}
     screenOptions={{
       headerShown: false,
       animation: 'slide_from_right',
@@ -68,4 +72,5 @@ export const AuthNavigator: React.FC = () => (
       options={{ gestureEnabled: false, animation: 'fade_from_bottom' }}
     />
   </Stack.Navigator>
-);
+  );
+};

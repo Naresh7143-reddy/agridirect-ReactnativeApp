@@ -17,6 +17,8 @@ export interface AuthSliceState {
   role: UserRole | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  /** Prevents AuthNavigator from remounting during active OTP/register flows */
+  isAuthInProgress: boolean;
   /** Raw Firebase user object (nullable — only present when using Firebase auth) */
   firebaseUser: Record<string, unknown> | null;
 }
@@ -28,6 +30,7 @@ const initialState: AuthSliceState = {
   role: null,
   isAuthenticated: false,
   isLoading: false,
+  isAuthInProgress: false,
   firebaseUser: null,
 };
 
@@ -92,6 +95,11 @@ const authSlice = createSlice({
       state.isLoading = action.payload;
     },
 
+    /** Set true when OTP verified — prevents AuthNavigator remounting mid-flow */
+    setAuthInProgress(state, action: PayloadAction<boolean>) {
+      state.isAuthInProgress = action.payload;
+    },
+
     /** Store the raw Firebase user object (e.g. after firebase.auth() sign-in) */
     setFirebaseUser(
       state,
@@ -119,6 +127,7 @@ export const {
   logout,
   updateUser,
   setLoading,
+  setAuthInProgress,
   setFirebaseUser,
   setToken,
   setRefreshToken: setRefreshTokenAction,
@@ -133,6 +142,7 @@ export const selectRole = (state: RootState) => state.auth.role;
 export const selectIsAuthenticated = (state: RootState) =>
   state.auth.isAuthenticated;
 export const selectIsLoading = (state: RootState) => state.auth.isLoading;
+export const selectIsAuthInProgress = (state: RootState) => state.auth.isAuthInProgress;
 export const selectFirebaseUser = (state: RootState) =>
   state.auth.firebaseUser;
 

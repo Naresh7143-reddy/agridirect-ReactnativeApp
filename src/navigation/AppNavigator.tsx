@@ -195,7 +195,10 @@ export const AppNavigator: React.FC = () => {
 
   // ── Loading splash ─────────────────────────────────────────────────────────
 
-  if (!isAppReady || isLoading) {
+  // Only block render until the app bootstrap finishes (FCM + channels).
+  // Do NOT gate on isLoading — that causes AuthNavigator to unmount/remount
+  // mid-auth-flow which resets the stack to Splash and creates a login loop.
+  if (!isAppReady) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={Colors.primary} />

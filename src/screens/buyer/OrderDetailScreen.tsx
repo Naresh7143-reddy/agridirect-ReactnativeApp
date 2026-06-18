@@ -130,18 +130,18 @@ export default function OrderDetailScreen() {
 
         <View style={s.card}>
           <Text style={s.sectionTitle}>Price Details</Text>
-          <View style={s.priceRow}><Text style={s.priceLabel}>Subtotal</Text><Text style={s.priceVal}>{formatPrice(order.totalAmount)}</Text></View>
-          <View style={s.priceRow}><Text style={s.priceLabel}>Delivery Fee</Text><Text style={s.priceVal}>{formatPrice(order.deliveryFee)}</Text></View>
-          {order.discount > 0 && <View style={s.priceRow}><Text style={[s.priceLabel,{color:Colors.success}]}>Discount</Text><Text style={[s.priceVal,{color:Colors.success}]}>-{formatPrice(order.discount)}</Text></View>}
-          <View style={[s.priceRow,s.totalRow]}><Text style={s.totalLabel}>Total Paid</Text><Text style={s.totalVal}>{formatPrice(order.grandTotal)}</Text></View>
+          <View style={s.priceRow}><Text style={s.priceLabel}>Subtotal</Text><Text style={s.priceVal}>{formatPrice(order.totalAmount ?? 0)}</Text></View>
+          <View style={s.priceRow}><Text style={s.priceLabel}>Delivery Fee</Text><Text style={s.priceVal}>{formatPrice(order.deliveryFee ?? 0)}</Text></View>
+          {(order.discount ?? 0) > 0 && <View style={s.priceRow}><Text style={[s.priceLabel,{color:Colors.success}]}>Discount</Text><Text style={[s.priceVal,{color:Colors.success}]}>-{formatPrice(order.discount ?? 0)}</Text></View>}
+          <View style={[s.priceRow,s.totalRow]}><Text style={s.totalLabel}>Total Paid</Text><Text style={s.totalVal}>{formatPrice(order.grandTotal ?? 0)}</Text></View>
           <View style={s.priceRow}><Text style={s.priceLabel}>Payment</Text><Text style={s.priceVal}>{order.paymentMethod} • {order.paymentStatus}</Text></View>
         </View>
 
         <View style={s.card}>
           <Text style={s.sectionTitle}>Delivery Address</Text>
-          <Text style={s.addrText}>{order.deliveryAddress.line1}</Text>
-          {order.deliveryAddress.line2 ? <Text style={s.addrText}>{order.deliveryAddress.line2}</Text> : null}
-          <Text style={s.addrText}>{order.deliveryAddress.city}, {order.deliveryAddress.state} - {order.deliveryAddress.pincode}</Text>
+          <Text style={s.addrText}>{order.deliveryAddress?.line1 ?? ''}</Text>
+          {order.deliveryAddress?.line2 ? <Text style={s.addrText}>{order.deliveryAddress.line2}</Text> : null}
+          <Text style={s.addrText}>{order.deliveryAddress?.city ?? ''}{order.deliveryAddress?.state ? `, ${order.deliveryAddress.state}` : ''}{order.deliveryAddress?.pincode ? ` - ${order.deliveryAddress.pincode}` : ''}</Text>
         </View>
 
         {order.deliveryAgentName ? (

@@ -65,13 +65,14 @@ export interface Order {
   deliveryFee: number;
   discount: number;
   grandTotal: number;
-  deliveryAddress: DeliveryAddress;
+  deliveryAddress: DeliveryAddress | string;
   paymentMethod: string;
   paymentStatus: PaymentStatus;
   paymentId?: string;     // Razorpay payment ID after successful payment
   razorpayOrderId?: string;
   deliveryAgentId?: string;
   deliveryAgentName?: string;
+  deliveryAgentPhone?: string;
   trackingEvents?: TrackingEvent[];
   notes?: string;
   cancelReason?: string;

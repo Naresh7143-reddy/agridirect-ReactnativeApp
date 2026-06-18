@@ -68,10 +68,13 @@ export const ProductDetailScreen: React.FC = () => {
     }).catch(() => {}).finally(() => setLoading(false));
   }, [productId]);
 
+  const isUnavailable = !product?.isAvailable || (product?.stock != null && product.stock === 0);
+
   const handleAdd = useCallback(() => {
     if (!product) return;
+    if (isUnavailable) return; // guard: do not add unavailable products
     dispatch(addItem({ product, quantity: 1 }));
-  }, [dispatch, product]);
+  }, [dispatch, product, isUnavailable]);
 
   const handleInc = useCallback(() => {
     dispatch(updateQuantity({ productId, quantity: qty + 1 }));
@@ -165,11 +168,11 @@ export const ProductDetailScreen: React.FC = () => {
             <Text style={styles.stepperLabel}>Quantity:</Text>
             {qty === 0 ? (
               <TouchableOpacity
-                style={[styles.addBtn, product.stock === 0 && styles.addBtnDisabled]}
+                style={[styles.addBtn, isUnavailable && styles.addBtnDisabled]}
                 onPress={handleAdd}
-                disabled={product.stock === 0}
+                disabled={isUnavailable}
               >
-                <Text style={styles.addBtnText}>{product.stock === 0 ? 'Out of Stock' : '+ Add to Cart'}</Text>
+                <Text style={styles.addBtnText}>{isUnavailable ? (!product?.isAvailable ? 'Unavailable' : 'Out of Stock') : '+ Add to Cart'}</Text>
               </TouchableOpacity>
             ) : (
               <View style={styles.stepper}>
@@ -252,11 +255,11 @@ export const ProductDetailScreen: React.FC = () => {
         </View>
         {qty === 0 ? (
           <TouchableOpacity
-            style={[styles.stickyAddBtn, product.stock === 0 && styles.addBtnDisabled]}
+            style={[styles.stickyAddBtn, isUnavailable && styles.addBtnDisabled]}
             onPress={handleAdd}
-            disabled={product.stock === 0}
+            disabled={isUnavailable}
           >
-            <Text style={styles.stickyAddText}>{product.stock === 0 ? 'Out of Stock' : '+ Add to Cart'}</Text>
+            <Text style={styles.stickyAddText}>{isUnavailable ? (!product?.isAvailable ? 'Unavailable' : 'Out of Stock') : '+ Add to Cart'}</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.stickyStepperWrap}>

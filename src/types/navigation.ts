@@ -130,6 +130,7 @@ export type FarmerStackParamList = {
   AddProduct: undefined;
   EditProduct: { productId: string };
   ProductPreview: { productId: string };
+  MyProducts: undefined;
 
   // Orders
   FarmerOrderDetail: { orderId: string };

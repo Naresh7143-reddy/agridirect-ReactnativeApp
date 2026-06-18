@@ -49,6 +49,10 @@ export const ordersApi = {
   ): Promise<PaginatedResponse<Order>> =>
     client.get('/api/farmer/orders', { params }),
 
+  /** Single order detail for farmer (enriched: buyer + agent info) */
+  getFarmerOrderById: (id: string): Promise<ApiResponse<Order>> =>
+    client.get(`/api/farmer/orders/${id}`),
+
   /** Accept an incoming order */
   accept: (id: string): Promise<ApiResponse<Order>> =>
     client.put(`/api/farmer/orders/${id}/accept`),

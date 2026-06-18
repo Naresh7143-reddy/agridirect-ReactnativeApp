@@ -128,29 +128,12 @@ const SplashScreen: React.FC<Props> = ({ navigation }) => {
     const onboardingDone = isOnboardingDone();
 
     if (token) {
-      const user = getUserData<{ role: UserRole }>();
-      const role = user?.role;
-
-      switch (role) {
-        case 'FARMER':
-          navigation.replace('PhoneLogin'); // will be overridden by AppNavigator
-          break;
-        case 'BUYER':
-          navigation.replace('PhoneLogin');
-          break;
-        case 'DELIVERY':
-          navigation.replace('PhoneLogin');
-          break;
-        default:
-          // Token exists but role unknown — send to login
-          navigation.replace('PhoneLogin');
-      }
-      // NOTE: AppNavigator handles actual authenticated routing.
-      // If the store has isAuthenticated=true after rehydration,
-      // AppNavigator will mount the role navigator before Splash finishes.
+      // Token exists — AppNavigator already has isAuthenticated=true from
+      // redux-persist rehydration and will mount the correct RoleNavigator.
+      // Do NOT navigate here; navigating to PhoneLogin causes a splash loop
+      // when login completes and AuthNavigator remounts starting at Splash.
+      return;
     } else if (onboardingDone) {
-      // Returning visitor with no active session — let them choose
-      // "log in" vs "create account" rather than assuming either.
       navigation.replace('AuthChoice');
     } else {
       navigation.replace('Onboarding');

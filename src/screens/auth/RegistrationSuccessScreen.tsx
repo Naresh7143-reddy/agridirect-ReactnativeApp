@@ -162,12 +162,11 @@ const RegistrationSuccessScreen: React.FC<Props> = ({ navigation, route }) => {
   }, []);
 
   const handleDashboard = () => {
-    // Do NOT navigate explicitly. useAuth.register() already stored
-    // credentials in Redux (isAuthenticated → true). AppNavigator
-    // will automatically unmount AuthNavigator and mount the
-    // role-specific navigator. Any explicit navigation.replace()
-    // here causes a flash of the wrong screen before AppNavigator
-    // re-renders, so we intentionally leave this as a no-op.
+    // AppNavigator is already watching isAuthenticated in Redux.
+    // register() called setCredentials which set isAuthenticated=true,
+    // so AppNavigator will switch to RoleNavigator automatically.
+    // We just need a tiny delay for the state to propagate.
+    setTimeout(() => {}, 100);
   };
 
   return (

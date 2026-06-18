@@ -28,6 +28,7 @@ import FarmerProfileScreen from '../screens/farmer/FarmerProfileScreen';
 import AddProductScreen from '../screens/farmer/AddProductScreen';
 import EditProductScreen from '../screens/farmer/EditProductScreen';
 import ProductPreviewScreen from '../screens/farmer/ProductPreviewScreen';
+import MyProductsScreen from '../screens/farmer/MyProductsScreen';
 import FarmerOrderDetailScreen from '../screens/farmer/FarmerOrderDetailScreen';
 import FarmerEarningsScreen from '../screens/farmer/FarmerEarningsScreen';
 import FarmerBankDetailsScreen from '../screens/farmer/FarmerBankDetailsScreen';
@@ -207,6 +208,7 @@ export const FarmerNavigator: React.FC = () => (
     <Stack.Screen name="AddProduct"     component={AddProductScreen}     options={modal} />
     <Stack.Screen name="EditProduct"    component={EditProductScreen}    options={slide} />
     <Stack.Screen name="ProductPreview" component={ProductPreviewScreen} options={slide} />
+    <Stack.Screen name="MyProducts"     component={MyProductsScreen}     options={slide} />
 
     {/* Orders */}
     <Stack.Screen name="FarmerOrderDetail" component={FarmerOrderDetailScreen} options={slide} />

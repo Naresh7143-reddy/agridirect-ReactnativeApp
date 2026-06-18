@@ -50,6 +50,7 @@ import { shadow, borderRadius } from '../../theme/spacing';
 import { aiApi } from '../../api/ai';
 import type { ChatMessage, DiseaseDetectionResult } from '../../types/ai';
 import { launchCamera, launchGallery } from '../../utils/imagePicker';
+import { appStorage } from '../../utils/storage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,11 +69,16 @@ interface UIMessage {
 // ─── Language config ──────────────────────────────────────────────────────────
 
 const LANGUAGES = [
-  { code: 'English', label: 'EN' },
-  { code: 'Hindi',   label: 'हिं' },
-  { code: 'Telugu',  label: 'తె' },
-  { code: 'Tamil',   label: 'தமிழ்' },
+  { code: 'English', label: 'EN',    langCode: 'en' },
+  { code: 'Hindi',   label: 'हिं',    langCode: 'hi' },
+  { code: 'Telugu',  label: 'తె',    langCode: 'te' },
+  { code: 'Tamil',   label: 'தமிழ்', langCode: 'ta' },
 ];
+
+const langCodeToName = (code: string): string => {
+  const match = LANGUAGES.find((l) => l.langCode === code);
+  return match ? match.code : 'English';
+};
 
 // ─── Quick prompts ────────────────────────────────────────────────────────────
 
@@ -300,7 +306,7 @@ const AIAssistantScreen: React.FC = () => {
   ]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [language, setLanguage] = useState('English');
+  const [language, setLanguage] = useState(() => langCodeToName(appStorage.getString('language') ?? 'en'));
 
   const flatListRef = useRef<FlatList>(null);
   const history = useRef<ChatMessage[]>([]);
@@ -432,9 +438,6 @@ const AIAssistantScreen: React.FC = () => {
       <LinearGradient colors={['#1B5E20', '#2E7D32']} style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>Krishi AI 🌱</Text>
-          <View style={styles.poweredBy}>
-            <Text style={styles.poweredText}>Powered by Gemini</Text>
-          </View>
         </View>
         {/* Language chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.langScroll}>

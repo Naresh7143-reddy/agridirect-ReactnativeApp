@@ -458,11 +458,11 @@ const AddProductScreen: React.FC<Props> = ({ navigation }) => {
         images: imageUrls as any,
       } as any);
       Toast.show({ type: 'success', text1: 'Product added!', text2: values.name });
+      setSubmitting(false);
       navigation.goBack();
     } catch (e: any) {
       const msg = e?.response?.data?.message || e?.message || 'Try again';
       Toast.show({ type: 'error', text1: 'Failed to add product', text2: msg });
-    } finally {
       setSubmitting(false);
     }
   };

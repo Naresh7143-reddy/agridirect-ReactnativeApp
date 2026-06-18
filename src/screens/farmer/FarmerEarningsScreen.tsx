@@ -14,6 +14,7 @@ import React, {
   useRef,
   useCallback,
 } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -221,6 +222,7 @@ const txStyles = StyleSheet.create({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const FarmerEarningsScreen: React.FC = () => {
+  const navigation = useNavigation();
   const [period, setPeriod] = useState<Period>('Month');
   const [earnings, setEarnings] = useState<FarmerEarnings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -243,7 +245,8 @@ const FarmerEarningsScreen: React.FC = () => {
         from: from.toISOString().split('T')[0],
         to: now.toISOString().split('T')[0],
       });
-      setEarnings(res.data);
+      const data = res.data;
+      setEarnings({ ...data, byDate: data?.byDate ?? [] });
     } catch {
       /* use mock data fallback */
       setEarnings({
@@ -290,7 +293,11 @@ const FarmerEarningsScreen: React.FC = () => {
 
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Icon name="arrow-back" size={22} color={Colors.textPrimary} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Earnings</Text>
+        <View style={{ width: 40 }} />
       </View>
 
       <FlashList
@@ -404,11 +411,14 @@ const FarmerEarningsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: Colors.background },
   header: {
-    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
     paddingTop: Platform.OS === 'ios' ? 56 : 24,
     paddingBottom: 12,
   },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: Colors.textPrimary },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: 22, fontWeight: '800', color: Colors.textPrimary, textAlign: 'center' },
   scroll: { paddingHorizontal: 20, paddingBottom: 40 },
   periodBar: {
     flexDirection: 'row',
