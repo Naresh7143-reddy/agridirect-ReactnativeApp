@@ -471,7 +471,7 @@ const FarmerOrdersScreen: React.FC = () => {
         await ordersApi.accept(orderId);
         Toast.show({ type: 'success', text1: 'Order accepted' });
       } else if (action === 'pack') {
-        await ordersApi.packed(orderId);
+        await ordersApi.markPacked(orderId);
         Toast.show({ type: 'success', text1: 'Order marked as packed' });
       } else {
         Toast.show({ type: 'info', text1: 'Order declined' });
