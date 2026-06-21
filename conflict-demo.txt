@@ -1,2 +1,2 @@
 Exp-15 demo
-Greeting: Hello from the FEATURE branch!
+Greeting: Hello from BOTH branches (conflict resolved)!
