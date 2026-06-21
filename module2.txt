@@ -1,0 +1,3 @@
+Module 2
+========
+Functionality added by team member 2 (product module).
