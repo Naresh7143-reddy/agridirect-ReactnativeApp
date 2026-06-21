@@ -1,0 +1,3 @@
+Module 1
+========
+Functionality added by team member 1 (login module).
