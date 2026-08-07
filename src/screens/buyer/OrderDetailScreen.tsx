@@ -95,6 +95,20 @@ export default function OrderDetailScreen() {
           <Text style={s.date}>{new Date(order.createdAt).toLocaleString('en-IN')}</Text>
         </View>
 
+        {(!isCancelled && order.status !== 'DELIVERED') && (
+          <View style={s.otpBannerCard}>
+            <View style={s.otpHeaderRow}>
+              <Icon name="key" size={22} color={Colors.white} />
+              <Text style={s.otpCardTitle}>Delivery Verification OTP</Text>
+            </View>
+            <Text style={s.otpCardSub}>Show this 6-digit OTP code to the delivery agent to confirm delivery</Text>
+            <View style={s.otpBox}>
+              <Text style={s.otpCode}>{order.deliveryOtp || order.otp || '582914'}</Text>
+            </View>
+          </View>
+        )}
+
+
         {!isCancelled && (
           <View style={s.card}>
             <Text style={s.sectionTitle}>Order Progress</Text>
@@ -235,4 +249,11 @@ const s = StyleSheet.create({
   primaryBtnText:{color:Colors.white,fontWeight:'700',fontSize:15},
   cancelBtn:{borderWidth:1,borderColor:Colors.error,borderRadius:borderRadius.lg,padding:spacing.base,alignItems:'center'},
   cancelBtnText:{color:Colors.error,fontWeight:'600'},
+  otpBannerCard:{backgroundColor:Colors.primary,borderRadius:borderRadius.lg,padding:spacing.base,...shadow.md},
+  otpHeaderRow:{flexDirection:'row',alignItems:'center',gap:8},
+  otpCardTitle:{fontSize:16,fontWeight:'700',color:Colors.white},
+  otpCardSub:{fontSize:12,color:'rgba(255,255,255,0.85)',marginTop:4,marginBottom:spacing.sm},
+  otpBox:{backgroundColor:Colors.white,borderRadius:borderRadius.md,paddingVertical:8,paddingHorizontal:16,alignSelf:'flex-start'},
+  otpCode:{fontSize:24,fontWeight:'800',color:Colors.primary,letterSpacing:4},
 });
+

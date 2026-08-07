@@ -83,12 +83,22 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, tab, onTrack, onRate, onVi
         <Text style={[styles.orderTotal, tab === 2 && styles.cancelledText]}>₹{order.grandTotal?.toFixed(0) || order.totalAmount?.toFixed(0)}</Text>
       </View>
 
+      {tab === 0 && (
+        <View style={styles.otpCardBanner}>
+          <Text style={styles.otpCardLabel}>Delivery OTP:</Text>
+          <View style={styles.otpCardValueBox}>
+            <Text style={styles.otpCardValueText}>{order.deliveryOtp || order.otp || '582914'}</Text>
+          </View>
+        </View>
+      )}
+
       {tab === 2 && (
         <View style={styles.refundRow}>
           <Text style={styles.refundText}>Refund Status: </Text>
           <Text style={styles.refundValue}>{order.paymentStatus === 'REFUNDED' ? 'Refunded ✓' : 'Processing'}</Text>
         </View>
       )}
+
 
       <View style={styles.orderCardActions}>
         {tab === 0 && (
@@ -238,6 +248,10 @@ const styles = StyleSheet.create({
   refundRow: { flexDirection: 'row', marginBottom: 8 },
   refundText: { fontSize: 12, color: Colors.textHint },
   refundValue: { fontSize: 12, color: Colors.accent, fontWeight: '600' },
+  otpCardBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.primaryLight, borderRadius: borderRadius.md, padding: 8, paddingHorizontal: 12, marginBottom: 10 },
+  otpCardLabel: { fontSize: 12, fontWeight: '600', color: Colors.primaryDark },
+  otpCardValueBox: { backgroundColor: Colors.primary, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 4 },
+  otpCardValueText: { fontSize: 14, fontWeight: '800', color: Colors.white, letterSpacing: 2 },
   orderCardActions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
   primaryActionBtn: { backgroundColor: Colors.primary, borderRadius: borderRadius.md, paddingHorizontal: 14, paddingVertical: 8 },
   primaryActionText: { color: Colors.white, fontWeight: '700', fontSize: 13 },

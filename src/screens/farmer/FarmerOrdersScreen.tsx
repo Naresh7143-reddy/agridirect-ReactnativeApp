@@ -125,66 +125,71 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onPress, onAccept, onRejec
       onPress={onPress}
       activeOpacity={0.9}
     >
-      {/* Thumbnail stack */}
-      <View style={cardStyles.thumbStack}>
-        {firstThree.map((item, i) => (
-          <View
-            key={item.id}
-            style={[
-              cardStyles.thumb,
-              { marginTop: i * 8, zIndex: firstThree.length - i },
-            ]}
-          >
-            <Icon name="leaf" size={20} color={Colors.primary} />
-          </View>
-        ))}
-        {extra > 0 && (
-          <View style={[cardStyles.extraBadge, { marginTop: firstThree.length * 8 }]}>
-            <Text style={cardStyles.extraText}>+{extra}</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Info */}
-      <View style={cardStyles.info}>
-        <View style={cardStyles.topRow}>
-          <TouchableOpacity onPress={copyId} style={cardStyles.idRow}>
-            <Text style={cardStyles.orderId}>#{shortId(order.id)}</Text>
-            <Icon name="copy-outline" size={12} color={Colors.textHint} />
-          </TouchableOpacity>
-          <Text style={cardStyles.timeAgo}>{timeAgo(order.createdAt)}</Text>
+      <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+        {/* Thumbnail stack */}
+        <View style={cardStyles.thumbStack}>
+          {firstThree.map((item, i) => (
+            <View
+              key={item.id}
+              style={[
+                cardStyles.thumb,
+                { marginTop: i * 8, zIndex: firstThree.length - i },
+              ]}
+            >
+              <Icon name="leaf" size={20} color={Colors.primary} />
+            </View>
+          ))}
+          {extra > 0 && (
+            <View style={[cardStyles.extraBadge, { marginTop: firstThree.length * 8 }]}>
+              <Text style={cardStyles.extraText}>+{extra}</Text>
+            </View>
+          )}
         </View>
 
-        <Text style={cardStyles.buyerName} numberOfLines={1}>
-          {order.buyerName ?? 'Buyer'}{typeof order.deliveryAddress === 'object' && order.deliveryAddress?.city ? ` · ${order.deliveryAddress.city}` : ''}
-        </Text>
+        {/* Info */}
+        <View style={cardStyles.info}>
+          <View style={cardStyles.topRow}>
+            <TouchableOpacity onPress={copyId} style={cardStyles.idRow}>
+              <Text style={cardStyles.orderId}>#{shortId(order.id)}</Text>
+              <Icon name="copy-outline" size={12} color={Colors.textHint} />
+            </TouchableOpacity>
+            <Text style={cardStyles.timeAgo}>{timeAgo(order.createdAt)}</Text>
+          </View>
 
-        <Text style={cardStyles.summary}>
-          {items.length} item{items.length !== 1 ? 's' : ''} · {totalKg} units
-        </Text>
+          <Text style={cardStyles.buyerName} numberOfLines={1}>
+            {order.buyerName ?? 'Buyer'}{typeof order.deliveryAddress === 'object' && order.deliveryAddress?.city ? ` · ${order.deliveryAddress.city}` : ''}
+          </Text>
 
-        <View style={cardStyles.bottomRow}>
-          <Text style={cardStyles.total}>₹{((order.grandTotal ?? order.totalAmount ?? 0)).toFixed(2)}</Text>
-          <StatusBadge status={order.status} />
+          <Text style={cardStyles.summary}>
+            {items.length} item{items.length !== 1 ? 's' : ''} · {totalKg} units
+          </Text>
+
+          <View style={cardStyles.bottomRow}>
+            <Text style={cardStyles.total}>₹{((order.grandTotal ?? order.totalAmount ?? 0)).toFixed(2)}</Text>
+            <StatusBadge status={order.status} />
+          </View>
         </View>
       </View>
+
 
       {/* Quick action buttons */}
       {order.status === OrderStatus.PENDING && (
-        <View style={cardStyles.actions}>
-          <TouchableOpacity style={cardStyles.acceptBtn} onPress={onAccept}>
+        <View style={cardStyles.actionsRow}>
+          <TouchableOpacity style={cardStyles.acceptFullBtn} onPress={onAccept}>
             <Icon name="checkmark" size={16} color={Colors.white} />
+            <Text style={cardStyles.btnText}>Accept</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={cardStyles.rejectBtn} onPress={onReject}>
+          <TouchableOpacity style={cardStyles.rejectFullBtn} onPress={onReject}>
             <Icon name="close" size={16} color={Colors.white} />
+            <Text style={cardStyles.btnText}>Decline</Text>
           </TouchableOpacity>
         </View>
       )}
       {order.status === OrderStatus.ACCEPTED && (
-        <View style={cardStyles.actions}>
-          <TouchableOpacity style={cardStyles.packBtn} onPress={onPack}>
-            <Icon name="cube-outline" size={14} color={Colors.white} />
-            <Text style={cardStyles.packTxt}>Pack</Text>
+        <View style={cardStyles.actionsRow}>
+          <TouchableOpacity style={cardStyles.packFullBtn} onPress={onPack}>
+            <Icon name="cube-outline" size={16} color={Colors.white} />
+            <Text style={cardStyles.btnText}>Mark Packed</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -194,16 +199,13 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onPress, onAccept, onRejec
 
 const cardStyles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
     backgroundColor: Colors.surface,
     borderRadius: borderRadius.lg,
-    padding: 14,
+    padding: 16,
     marginBottom: 12,
-    alignItems: 'flex-start',
-    gap: 12,
     ...shadow.sm,
   },
-  thumbStack: { width: 44, alignItems: 'center', position: 'relative', minHeight: 60 },
+  thumbStack: { width: 44, alignItems: 'center', position: 'relative', minHeight: 44 },
   thumb: {
     width: 36,
     height: 36,
@@ -228,40 +230,19 @@ const cardStyles = StyleSheet.create({
   info: { flex: 1 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   idRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  orderId: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  orderId: { fontSize: 14, fontWeight: '700', color: Colors.primary },
   timeAgo: { fontSize: 11, color: Colors.textHint },
-  buyerName: { fontSize: 13, color: Colors.textPrimary, fontWeight: '500', marginBottom: 2 },
+  buyerName: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600', marginBottom: 2 },
   summary: { fontSize: 12, color: Colors.textSecondary, marginBottom: 6 },
   bottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   total: { fontSize: 16, fontWeight: '800', color: Colors.primary },
-  actions: { flexDirection: 'column', gap: 8, justifyContent: 'center' },
-  acceptBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.success,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rejectBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.error,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  packBtn: {
-    borderRadius: 8,
-    backgroundColor: Colors.warning,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    gap: 2,
-  },
-  packTxt: { fontSize: 10, fontWeight: '700', color: Colors.white },
+  actionsRow: { flexDirection: 'row', gap: 10, marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.divider, paddingTop: 10 },
+  acceptFullBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.success, borderRadius: borderRadius.md, paddingVertical: 10 },
+  rejectFullBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.error, borderRadius: borderRadius.md, paddingVertical: 10 },
+  packFullBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.warning, borderRadius: borderRadius.md, paddingVertical: 10 },
+  btnText: { fontSize: 13, fontWeight: '700', color: Colors.white },
 });
+
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 

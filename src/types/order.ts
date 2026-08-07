@@ -73,6 +73,8 @@ export interface Order {
   deliveryAgentId?: string;
   deliveryAgentName?: string;
   deliveryAgentPhone?: string;
+  deliveryOtp?: string;
+  otp?: string;
   trackingEvents?: TrackingEvent[];
   notes?: string;
   cancelReason?: string;
@@ -82,6 +84,7 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
 }
+
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 

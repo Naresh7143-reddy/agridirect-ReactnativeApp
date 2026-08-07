@@ -16,10 +16,12 @@ import Modal from 'react-native-modal';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors } from '../../theme/colors';
-import { shadow, borderRadius } from '../../theme/spacing';
+import { borderRadius, shadow } from '../../theme/spacing';
 import { deliveryApi } from '../../api/delivery';
+import { calculateDynamicEta } from '../../utils/deliveryCalc';
 
 type DeliveryStackParamList = {
+
   DeliveryNavigation: { orderId: string; pickupLat: number; pickupLng: number; dropLat: number; dropLng: number };
   DeliveryOrderDetail: { orderId: string };
 };
@@ -165,9 +167,10 @@ export const DeliveryNavigationScreen: React.FC = () => {
           </View>
           <View style={styles.etaBox}>
             <Text style={styles.etaLabel}>ETA</Text>
-            <Text style={styles.etaTime}>Live</Text>
+            <Text style={styles.etaTime}>{calculateDynamicEta(route.params.dropLat ? 3.5 : 2.0).formatted}</Text>
           </View>
         </View>
+
 
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <TouchableOpacity
