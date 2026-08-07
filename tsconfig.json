@@ -12,6 +12,7 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "allowJs": true,
+    "noEmit": true,
     "skipLibCheck": true,
     "types": ["jest"],
     "baseUrl": ".",
@@ -28,5 +29,15 @@
       "@assets/*": ["src/assets/*"]
     }
   },
-  "exclude": ["node_modules", "babel.config.js", "metro.config.js", "appium-tests", "e2e"]
+  "exclude": [
+    "node_modules",
+    "babel.config.js",
+    "metro.config.js",
+    "appium-tests",
+    "e2e",
+    "__mocks__",
+    "scripts",
+    "*.js"
+  ]
 }
+
