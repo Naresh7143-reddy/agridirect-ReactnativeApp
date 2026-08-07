@@ -14,7 +14,6 @@ import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import {
   persistStore,
   persistReducer,
-  createMigrate,
   FLUSH,
   REHYDRATE,
   PAUSE,
@@ -22,29 +21,21 @@ import {
   PURGE,
   REGISTER,
 } from 'redux-persist';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Storage } from 'redux-persist';
 import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
 
-import { reduxStorage } from '../utils/storage';
 import authReducer from './authSlice';
 import cartReducer from './cartSlice';
 import appReducer from './appSlice';
 
-// ─── MMKV → redux-persist Storage adapter ────────────────────────────────────
+// ─── AsyncStorage → redux-persist Storage adapter ────────────────────────────
+// Uses real on-disk AsyncStorage so auth/cart/settings survive app restarts.
 
-const mmkvStorage: Storage = {
-  setItem: (key, value) => {
-    reduxStorage.set(key, value);
-    return Promise.resolve(true);
-  },
-  getItem: (key) => {
-    const value = reduxStorage.getString(key);
-    return Promise.resolve(value ?? null);
-  },
-  removeItem: (key) => {
-    reduxStorage.delete(key);
-    return Promise.resolve();
-  },
+const asyncStorage: Storage = {
+  setItem: (key, value) => AsyncStorage.setItem(key, value),
+  getItem: (key) => AsyncStorage.getItem(key),
+  removeItem: (key) => AsyncStorage.removeItem(key),
 };
 
 // ─── Per-slice persist configs ────────────────────────────────────────────────
@@ -52,23 +43,20 @@ const mmkvStorage: Storage = {
 const authPersistConfig = {
   key: 'auth',
   version: 1,
-  storage: mmkvStorage,
-  // Never persist loading/firebase state — those are runtime-only
+  storage: asyncStorage,
   blacklist: ['isLoading', 'firebaseUser'],
 };
 
 const cartPersistConfig = {
   key: 'cart',
   version: 1,
-  storage: mmkvStorage,
-  // Persist everything — cart items are flat (no Product refs)
+  storage: asyncStorage,
 };
 
 const appPersistConfig = {
   key: 'app',
   version: 1,
-  storage: mmkvStorage,
-  // selectedLanguage and theme persist; runtime flags do not
+  storage: asyncStorage,
   whitelist: ['selectedLanguage', 'theme', 'fcmToken'],
 };
 

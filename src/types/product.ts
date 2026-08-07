@@ -30,6 +30,7 @@ export interface Product {
   price: number;          // price per unit, in paise (₹ × 100) OR rupees — match backend
   unit: string;           // e.g. "kg", "dozen", "piece"
   stock: number;
+  stockQuantity?: number; // backend alias — use stock ?? stockQuantity
   minOrderQuantity: number;
   maxOrderQuantity?: number;
   categoryId: string;

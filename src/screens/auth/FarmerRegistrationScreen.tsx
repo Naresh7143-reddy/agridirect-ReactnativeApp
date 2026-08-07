@@ -39,7 +39,7 @@ import Reanimated, {
   useAnimatedStyle,
   withTiming,
   Easing,
-} from 'react-native-reanimated';
+} from '../../utils/reanimatedStub';
 import Geolocation from '@react-native-community/geolocation';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Toast from 'react-native-toast-message';

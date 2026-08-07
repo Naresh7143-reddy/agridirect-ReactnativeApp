@@ -51,7 +51,20 @@ export const DeliveryEarningsScreen: React.FC = () => {
     if (isRefresh) setRefreshing(true);
     try {
       const res: any = await deliveryApi.getEarnings();
-      setEarnings(res.data ?? null);
+      // API client unwraps response.data, so res is { total, today, thisWeek, ... }
+      // Backend may also wrap in a data key — handle both
+      const data: any = res?.data ?? res;
+      setEarnings({
+        total:     data?.total     ?? data?.totalEarnings ?? 0,
+        pending:   data?.pending   ?? data?.pendingPayouts ?? 0,
+        paid:      data?.paid      ?? data?.paidOut ?? 0,
+        today:     data?.today     ?? data?.todayEarnings ?? 0,
+        thisWeek:  data?.thisWeek  ?? data?.weekEarnings ?? data?.this_week ?? 0,
+        thisMonth: data?.thisMonth ?? data?.monthEarnings ?? data?.this_month ?? 0,
+        byDate:    Array.isArray(data?.byDate)   ? data.byDate :
+                   Array.isArray(data?.by_date)  ? data.by_date :
+                   Array.isArray(data?.entries)  ? data.entries : [],
+      });
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   };

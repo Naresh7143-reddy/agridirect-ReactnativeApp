@@ -1,0 +1,16 @@
+# Copy this file to gradle.properties and fill in your values
+# DO NOT commit gradle.properties (it contains passwords)
+
+org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
+android.useAndroidX=true
+reactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64
+newArchEnabled=true
+hermesEnabled=true
+edgeToEdgeEnabled=false
+
+# Release signing — generate keystore first:
+# keytool -genkey -v -keystore agridirect-release.keystore -alias agridirect -keyalg RSA -keysize 2048 -validity 10000
+MYAPP_RELEASE_STORE_FILE=agridirect-release.keystore
+MYAPP_RELEASE_KEY_ALIAS=agridirect
+MYAPP_RELEASE_STORE_PASSWORD=YOUR_STORE_PASSWORD
+MYAPP_RELEASE_KEY_PASSWORD=YOUR_KEY_PASSWORD

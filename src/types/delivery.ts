@@ -88,6 +88,9 @@ export interface LocationUpdate {
 // ─── Earnings ─────────────────────────────────────────────────────────────────
 
 export interface EarningEntry {
+  id?: string;
+  orderId?: string;
+  status?: string;
   date: string;
   deliveries: number;
   amount: number;

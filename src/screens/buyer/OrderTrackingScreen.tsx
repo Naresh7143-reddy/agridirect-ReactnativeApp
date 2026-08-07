@@ -45,6 +45,26 @@ function formatCountdown(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+interface AgentInfo {
+  lat: number;
+  lng: number;
+  agentName?: string;
+  agentPhone?: string;
+  vehicleType?: string;
+  vehicleRegistration?: string;
+  rating?: number;
+  totalDeliveries?: number;
+  status?: string;
+}
+
+const VEHICLE_ICONS: Record<string, string> = {
+  BIKE: '🏍️',
+  BICYCLE: '🚲',
+  AUTO: '🛺',
+  VAN: '🚐',
+  SCOOTER: '🛵',
+};
+
 export const OrderTrackingScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<BuyerStackParamList>>();
   const route = useRoute<RouteProp<BuyerStackParamList, 'OrderTracking'>>();
@@ -52,6 +72,7 @@ export const OrderTrackingScreen: React.FC = () => {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [agent, setAgent] = useState<AgentInfo | null>(null);
   const [countdown, setCountdown] = useState(15 * 60); // 15 min ETA
 
   const sheetY = useRef(new Animated.Value(SNAP_POINTS[1])).current;
@@ -65,10 +86,42 @@ export const OrderTrackingScreen: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Load order details
   useEffect(() => {
     ordersApi.getOrderById(orderId).then((r: any) => {
       setOrder(r.data);
     }).catch(() => {}).finally(() => setLoading(false));
+  }, [orderId]);
+
+  // Poll agent location every 5 seconds
+  useEffect(() => {
+    const fetchAgentLocation = () => {
+      ordersApi.getAgentLocation(orderId).then((r: any) => {
+        const data = r.data;
+        if (data?.available) {
+          setAgent({
+            lat: data.lat,
+            lng: data.lng,
+            agentName: data.agentName,
+            agentPhone: data.agentPhone,
+            vehicleType: data.vehicleType,
+            vehicleRegistration: data.vehicleRegistration,
+            rating: data.rating,
+            totalDeliveries: data.totalDeliveries,
+            status: data.status,
+          });
+
+          // Update order status from agent location response
+          if (data.status) {
+            setOrder(prev => prev ? { ...prev, status: data.status as any } : prev);
+          }
+        }
+      }).catch(() => {});
+    };
+
+    fetchAgentLocation(); // Initial fetch
+    const interval = setInterval(fetchAgentLocation, 5000);
+    return () => clearInterval(interval);
   }, [orderId]);
 
   const snapToPoint = (gestureY: number) => {
@@ -121,20 +174,37 @@ export const OrderTrackingScreen: React.FC = () => {
           <Text style={styles.errorText}>Order not found</Text>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} scrollEnabled={false}>
-            {/* Collapsed view: agent + ETA */}
+            {/* Swiggy/Zomato style agent card */}
             <View style={styles.topRow}>
               <View style={styles.agentInfo}>
                 <View style={styles.agentAvatar}>
-                  <Text style={styles.agentAvatarText}>🧑</Text>
+                  <Text style={styles.agentAvatarText}>
+                    {VEHICLE_ICONS[agent?.vehicleType || 'BIKE'] || '🏍️'}
+                  </Text>
                 </View>
                 <View>
-                  <Text style={styles.agentName}>Delivery Agent</Text>
-                  <Text style={styles.agentSub}>on the way</Text>
+                  <Text style={styles.agentName}>{agent?.agentName || 'Delivery Partner'}</Text>
+                  <Text style={styles.agentSub}>
+                    {agent?.vehicleType || 'Bike'} {agent?.vehicleRegistration ? `(${agent.vehicleRegistration})` : ''} • ⭐ {(agent?.rating || 4.5).toFixed(1)}
+                  </Text>
                 </View>
               </View>
-              <View style={styles.etaBox}>
-                <Text style={styles.etaLabel}>ETA</Text>
-                <Text style={styles.etaTime}>{formatCountdown(countdown)}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                {agent?.agentPhone ? (
+                  <TouchableOpacity
+                    style={styles.callBtn}
+                    onPress={() => {
+                      const url = `tel:${agent.agentPhone}`;
+                      require('react-native').Linking.openURL(url);
+                    }}
+                  >
+                    <Text style={styles.callBtnText}>📞 Call</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <View style={styles.etaBox}>
+                  <Text style={styles.etaLabel}>ETA</Text>
+                  <Text style={styles.etaTime}>{formatCountdown(countdown)}</Text>
+                </View>
               </View>
             </View>
 
@@ -177,12 +247,18 @@ export const OrderTrackingScreen: React.FC = () => {
             {order.deliveryAddress && (
               <View style={styles.addressSection}>
                 <Text style={styles.sectionTitle}>Delivering to</Text>
-                <Text style={styles.addressText}>
-                  {order.deliveryAddress.line1}{order.deliveryAddress.line2 ? `, ${order.deliveryAddress.line2}` : ''}
-                </Text>
-                <Text style={styles.addressText}>
-                  {order.deliveryAddress.city}, {order.deliveryAddress.state}
-                </Text>
+                {typeof order.deliveryAddress === 'string' ? (
+                  <Text style={styles.addressText}>{order.deliveryAddress}</Text>
+                ) : (
+                  <>
+                    <Text style={styles.addressText}>
+                      {order.deliveryAddress.line1}{order.deliveryAddress.line2 ? `, ${order.deliveryAddress.line2}` : ''}
+                    </Text>
+                    <Text style={styles.addressText}>
+                      {order.deliveryAddress.city}, {order.deliveryAddress.state}
+                    </Text>
+                  </>
+                )}
               </View>
             )}
           </ScrollView>
@@ -214,6 +290,8 @@ const styles = StyleSheet.create({
   agentName: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
   agentSub: { fontSize: 12, color: Colors.textHint },
   etaBox: { alignItems: 'center', backgroundColor: Colors.successLight, borderRadius: borderRadius.md, paddingHorizontal: 16, paddingVertical: 8 },
+  callBtn: { backgroundColor: Colors.success, borderRadius: borderRadius.full, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
+  callBtnText: { color: Colors.white, fontWeight: '700', fontSize: 13 },
   etaLabel: { fontSize: 11, color: Colors.textHint },
   etaTime: { fontSize: 20, fontWeight: '800', color: Colors.primary },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },

@@ -15,6 +15,11 @@
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
 
+# Firebase AppCheck (PlayIntegrity provider) — CRITICAL for OTP reCAPTCHA
+-keep class com.google.android.gms.playintegrity.** { *; }
+-keep interface com.google.android.gms.playintegrity.** { *; }
+-dontwarn com.google.android.gms.playintegrity.**
+
 # Razorpay
 -keepclassmembers class * {
     @android.webkit.JavascriptInterface <methods>;

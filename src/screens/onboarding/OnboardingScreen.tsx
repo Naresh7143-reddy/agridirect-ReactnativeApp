@@ -41,7 +41,7 @@ import Reanimated, {
   withSpring,
   withDelay,
   Easing,
-} from 'react-native-reanimated';
+} from '../../utils/reanimatedStub';
 import Svg, { Path, Circle } from 'react-native-svg';
 import LinearGradient from 'react-native-linear-gradient';
 

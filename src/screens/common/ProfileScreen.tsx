@@ -193,13 +193,18 @@ const ProfileScreen: React.FC = () => {
       <View style={styles.menuCard}>
         <MenuItem icon="person-outline" label="Edit Profile" onPress={() => go('EditProfile')} />
         {role === 'BUYER' && (
-          <MenuItem icon="location-outline" label="Saved Addresses" onPress={() => go('SavedAddresses')} />
+          <>
+            <MenuItem icon="repeat-outline" label="Fresh Subscriptions" onPress={() => go('Subscriptions')} />
+            <MenuItem icon="swap-horizontal-outline" label="My Returns & Refunds" onPress={() => go('ReturnHistory')} />
+            <MenuItem icon="location-outline" label="Saved Addresses" onPress={() => go('SavedAddresses')} />
+          </>
         )}
         <MenuItem icon="notifications-outline" label="Notifications" onPress={() => go('Notifications')} />
         <MenuItem icon="help-circle-outline" label="Help & Support" onPress={() => go('HelpSupport')} />
         <MenuItem icon="document-text-outline" label="Terms & Conditions" onPress={() => go('TermsConditions')} />
         <MenuItem icon="information-circle-outline" label="About AgriDirect" onPress={() => go('About')} />
       </View>
+
 
       <View style={styles.menuCard}>
         <MenuItem icon="log-out-outline" label="Log Out" onPress={handleLogout} danger />

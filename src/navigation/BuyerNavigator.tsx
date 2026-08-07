@@ -44,7 +44,12 @@ import CategoryBrowseScreen from '../screens/buyer/CategoryBrowseScreen';
 import InvoiceScreen from '../screens/common/InvoiceScreen';
 import ReferEarnScreen from '../screens/common/ReferEarnScreen';
 
+import SubscriptionsScreen from '../screens/buyer/SubscriptionsScreen';
+import SubmitReturnScreen from '../screens/buyer/SubmitReturnScreen';
+import ReturnHistoryScreen from '../screens/buyer/ReturnHistoryScreen';
+
 // ─── Tab configuration ────────────────────────────────────────────────────────
+
 
 interface TabConfig {
   name: keyof BuyerTabParamList;
@@ -200,5 +205,9 @@ export const BuyerNavigator: React.FC = () => (
     <Stack.Screen name="CategoryBrowse"       component={CategoryBrowseScreen}       options={slide} />
     <Stack.Screen name="Invoice"              component={InvoiceScreen}              options={slide} />
     <Stack.Screen name="ReferEarn"            component={ReferEarnScreen}            options={slide} />
+    <Stack.Screen name="Subscriptions"        component={SubscriptionsScreen as any} options={slide} />
+    <Stack.Screen name="SubmitReturn"         component={SubmitReturnScreen as any}  options={slide} />
+    <Stack.Screen name="ReturnHistory"        component={ReturnHistoryScreen as any} options={slide} />
   </Stack.Navigator>
+
 );

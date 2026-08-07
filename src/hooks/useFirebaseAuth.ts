@@ -19,6 +19,7 @@ import {
   firebaseAuth,
   firebaseSignOut,
   formatIndianPhone,
+  initializeAppCheck,
   type ConfirmationResult,
   type FirebaseUser,
 } from '../utils/firebase';
@@ -29,7 +30,7 @@ const FIREBASE_ERRORS: Record<string, string> = {
   'auth/invalid-phone-number':
     'Invalid phone number. Please enter a valid 10-digit number.',
   'auth/too-many-requests':
-    'Too many attempts. Please wait a moment and try again.',
+    'Too many attempts. Please wait a few minutes and try again.',
   'auth/invalid-verification-code':
     'Incorrect OTP. Please check and try again.',
   'auth/code-expired':
@@ -41,9 +42,9 @@ const FIREBASE_ERRORS: Record<string, string> = {
   'auth/quota-exceeded':
     'SMS quota exceeded. Please try again later.',
   'auth/network-request-failed':
-    'Network error. Please check your connection.',
+    'Network error. Please check your connection and try again.',
   'auth/app-not-authorized':
-    'App not authorized. Please contact support.',
+    'This app is not authorized for phone sign-in. Please contact support.',
   'auth/captcha-check-failed':
     'Verification check failed. Please try again.',
   'auth/missing-app-credential':
@@ -51,11 +52,33 @@ const FIREBASE_ERRORS: Record<string, string> = {
   'auth/invalid-app-credential':
     'Invalid app credential. Please try again.',
   'auth/web-internal-error':
-    'Firebase internal error. Please try again.',
+    'A Firebase error occurred. Please try again.',
+  'auth/internal-error':
+    'A Firebase internal error occurred. Please try again.',
+  'auth/operation-not-allowed':
+    'Phone sign-in is not enabled. Please contact support.',
+  'auth/user-disabled':
+    'This account has been disabled. Please contact support.',
+  'auth/requires-recent-login':
+    'Please sign in again to continue.',
+  'auth/provider-already-linked':
+    'This phone number is already linked to another account.',
+  'auth/credential-already-in-use':
+    'This phone number is already used by another account.',
+  'auth/missing-phone-number':
+    'Please enter a phone number.',
+  'auth/invalid-verification-id':
+    'OTP session is invalid. Please request a new OTP.',
+  'auth/missing-verification-id':
+    'OTP session is missing. Please request a new OTP.',
 };
 
-const getFirebaseErrorMessage = (code: string): string =>
-  FIREBASE_ERRORS[code] ?? 'An error occurred. Please try again.';
+const getFirebaseErrorMessage = (code: string): string => {
+  if (__DEV__) {
+    console.warn('[FirebaseAuth] Error code:', code);
+  }
+  return FIREBASE_ERRORS[code] ?? `OTP failed (${code}). Please try again.`;
+};
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -81,6 +104,9 @@ export const useFirebaseAuth = (): UseFirebaseAuthReturn => {
     async (phoneNumber: string): Promise<ConfirmationResult> => {
       setIsSending(true);
       try {
+        // Initialize AppCheck before sending OTP (required for mobile reCAPTCHA)
+        await initializeAppCheck();
+
         // Always format to +91XXXXXXXXXX before sending to Firebase
         const formatted = formatIndianPhone(phoneNumber);
 

@@ -279,7 +279,9 @@ const FarmerProfileScreen: React.FC = () => {
           <MenuItem icon="person-outline"         label="Edit Profile"           onPress={() => navigation.navigate('EditProfile')} />
           <MenuItem icon="leaf-outline"           label="My Products"            onPress={() => navigation.navigate('MyProducts')} />
           <MenuItem icon="cash-outline"           label="Earnings"               onPress={() => navigation.navigate('FarmerEarnings')} />
+          <MenuItem icon="swap-horizontal-outline" label="Customer Returns"       onPress={() => navigation.navigate('FarmerReturns')} />
           <MenuItem icon="card-outline"           label="Bank Details"           onPress={() => navigation.navigate('FarmerBankDetails')} />
+
           <MenuItem icon="notifications-outline"  label="Notification Settings"  onPress={() => navigation.navigate('NotificationSettings')} />
           <MenuItem icon="language-outline"       label="Language"               onPress={() => navigation.navigate('LanguageSettings')} />
           <MenuItem icon="help-circle-outline"    label="Help & Support"         onPress={() => navigation.navigate('HelpSupport')} />

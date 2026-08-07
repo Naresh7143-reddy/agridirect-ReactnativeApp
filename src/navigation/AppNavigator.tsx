@@ -19,10 +19,11 @@ import {
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import Toast from 'react-native-toast-message';
 
-import { useAppDispatch, useAppSelector } from '../store';
+import { useAppDispatch, useAppSelector, store } from '../store';
 import { setAppReady, setFcmToken } from '../store/appSlice';
 import { useAuth } from '../hooks/useAuth';
 import { Colors } from '../theme/colors';
+import { loadTokensFromStorage, setCachedToken, setCachedRefreshToken } from '../utils/tokenCache';
 
 import { AuthNavigator }    from './AuthNavigator';
 import { FarmerNavigator }  from './FarmerNavigator';
@@ -130,6 +131,15 @@ export const AppNavigator: React.FC = () => {
 
     const bootstrap = async () => {
       try {
+        // 0. Load tokens from AsyncStorage into the in-process cache
+        //    so the API client can attach them synchronously on requests
+        await loadTokensFromStorage();
+
+        // Also seed the cache from redux-persisted state if available
+        const reduxState = (store as any).getState?.();
+        if (reduxState?.auth?.token) setCachedToken(reduxState.auth.token);
+        if (reduxState?.auth?.refreshToken) setCachedRefreshToken(reduxState.auth.refreshToken);
+
         // 1. Android notification channels
         await createAndroidChannels();
 

@@ -2,11 +2,12 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { RootState } from './index';
 import type { User, UserRole } from '../types/auth';
 import {
-  setAuthToken,
-  setRefreshToken,
-  clearAuthStorage,
-  setUserData,
-} from '../utils/storage';
+  persistToken,
+  persistRefreshToken,
+  clearPersistedTokens,
+  setCachedToken,
+} from '../utils/tokenCache';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── State shape ──────────────────────────────────────────────────────────────
 
@@ -61,10 +62,10 @@ const authSlice = createSlice({
       state.role = role;
       state.isAuthenticated = true;
       state.isLoading = false;
-      // Side-effects: persist to MMKV (synchronous, safe inside immer)
-      setAuthToken(token);
-      if (refreshToken) setRefreshToken(refreshToken);
-      setUserData(user);
+      // Persist tokens to AsyncStorage + token cache for API client
+      persistToken(token);
+      if (refreshToken) persistRefreshToken(refreshToken);
+      AsyncStorage.setItem('agridirect_user', JSON.stringify(user));
     },
 
     /**
@@ -79,16 +80,18 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.isLoading = false;
       state.firebaseUser = null;
-      clearAuthStorage();
+      clearPersistedTokens();
+      AsyncStorage.removeItem('agridirect_user');
     },
 
     /** Partial update — use after profile edits */
     updateUser(state, action: PayloadAction<Partial<User>>) {
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
-        setUserData(state.user);
+        AsyncStorage.setItem('agridirect_user', JSON.stringify(state.user));
       }
     },
+
 
     /** Toggle loading indicator for async auth operations */
     setLoading(state, action: PayloadAction<boolean>) {
@@ -111,13 +114,12 @@ const authSlice = createSlice({
     /** Update only the stored access token (e.g. after silent refresh) */
     setToken(state, action: PayloadAction<string>) {
       state.token = action.payload;
-      setAuthToken(action.payload);
+      persistToken(action.payload);
     },
 
-    /** Update refresh token separately */
     setRefreshToken(state, action: PayloadAction<string>) {
       state.refreshToken = action.payload;
-      setRefreshToken(action.payload);
+      persistRefreshToken(action.payload);
     },
   },
 });

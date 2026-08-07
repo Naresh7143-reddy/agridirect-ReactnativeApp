@@ -40,7 +40,7 @@ import Reanimated, {
   withRepeat,
   withSequence,
   withTiming,
-} from 'react-native-reanimated';
+} from '../../utils/reanimatedStub';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Toast from 'react-native-toast-message';
@@ -332,12 +332,14 @@ const AIAssistantScreen: React.FC = () => {
 
     try {
       const res: any = await aiApi.chat(text.trim(), language, history.current.slice(-10));
-      // Backend may return either { data: { reply: "..." } } (new shape) or
-      // { data: "raw string" } (old shape). Handle both gracefully.
+      // API client unwraps response.data, so res IS the payload.
+      // Backend shapes: { reply: "..." } | { data: { reply: "..." } } | "raw string"
       const reply: string =
-        (res?.data && typeof res.data === 'object' && (res.data as any).reply) ||
+        (typeof res === 'string' && res) ||
+        (res?.reply && typeof res.reply === 'string' && res.reply) ||
+        (res?.data?.reply && typeof res.data.reply === 'string' && res.data.reply) ||
         (typeof res?.data === 'string' && res.data) ||
-        (res as any)?.message ||
+        res?.message ||
         '';
       if (!reply) throw new Error('Empty reply from AI');
 
@@ -389,8 +391,9 @@ const AIAssistantScreen: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append('image', { uri, type: 'image/jpeg', name: 'crop.jpg' } as any);
-      const apiResult = await aiApi.detectDisease(formData);
-      const result = apiResult.data;
+      const apiResult: any = await aiApi.detectDisease(formData);
+      // API client unwraps, so apiResult is { data: DiseaseDetectionResult } or DiseaseDetectionResult
+      const result = apiResult?.data ?? apiResult;
       const summary = result.diseaseName
         ? `🔍 Detected: **${result.diseaseName}** (${result.severity} severity)\n\n${result.treatment?.[0]?.description ?? 'Consult your local agronomist.'}`
         : 'No disease detected. Your crop looks healthy! 🌱';

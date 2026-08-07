@@ -58,6 +58,12 @@ export default function AdminAnalyticsScreen() {
         <KpiCard icon="receipt-outline" label="Orders Today"   value={String(a.todayOrders)}       color="#2196F3"/>
       </View>
 
+      <Text style={s.sectionTitle}>Platform Financials & GMV</Text>
+      <View style={s.kpiGrid}>
+        <KpiCard icon="cash-outline"       label="Platform GMV"   value={formatPrice(a.totalRevenue * 1.15)} color={Colors.primary}/>
+        <KpiCard icon="analytics-outline"  label="Net Platform Fee" value={formatPrice(a.totalRevenue * 0.05)} color={Colors.success}/>
+      </View>
+
       <Text style={s.sectionTitle}>Platform Overview</Text>
       <View style={s.kpiGrid}>
         <KpiCard icon="people-outline"       label="Total Users"    value={String(a.totalUsers)}          color="#9C27B0"/>
@@ -67,6 +73,31 @@ export default function AdminAnalyticsScreen() {
         <KpiCard icon="bag-outline"          label="Active Products"value={String(a.activeProducts)}      color="#3F51B5"/>
         <KpiCard icon="trending-up-outline"  label="Total Revenue"  value={formatPrice(a.totalRevenue)}   color={Colors.primary}/>
       </View>
+
+      <Text style={s.sectionTitle}>Top Performing Crops</Text>
+      <View style={s.statusCard}>
+        <View style={[s.statusRow, { borderBottomWidth: 2 }]}>
+          <Text style={[s.statusLabel, { fontWeight: '700', color: Colors.textPrimary }]}>Crop Name</Text>
+          <Text style={[s.statusCount, { fontWeight: '700', color: Colors.textPrimary }]}>Sales Volume</Text>
+        </View>
+        <View style={s.statusRow}>
+          <Text style={s.statusLabel}>🌾 Organic Sonamasuri Rice</Text>
+          <Text style={s.statusCount}>1,240 kg</Text>
+        </View>
+        <View style={s.statusRow}>
+          <Text style={s.statusLabel}>🍅 Fresh Farm Tomatoes</Text>
+          <Text style={s.statusCount}>890 kg</Text>
+        </View>
+        <View style={s.statusRow}>
+          <Text style={s.statusLabel}>🥔 Organic Red Potatoes</Text>
+          <Text style={s.statusCount}>650 kg</Text>
+        </View>
+        <View style={s.statusRow}>
+          <Text style={s.statusLabel}>🥛 Fresh Farm Cow Milk</Text>
+          <Text style={s.statusCount}>420 L</Text>
+        </View>
+      </View>
+
 
       <Text style={s.sectionTitle}>Pending Actions</Text>
       <View style={s.pendingCard}>

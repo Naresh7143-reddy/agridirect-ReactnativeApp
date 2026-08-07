@@ -103,6 +103,11 @@ export type BuyerStackParamList = {
   PaymentMethods: undefined;
   NotificationSettings: undefined;
   LanguageSettings: undefined;
+
+  // New modules
+  Subscriptions: undefined;
+  SubmitReturn: { orderId: string } | undefined;
+  ReturnHistory: undefined;
 };
 
 export type BuyerScreenProps<T extends keyof BuyerStackParamList> =
@@ -134,6 +139,8 @@ export type FarmerStackParamList = {
 
   // Orders
   FarmerOrderDetail: { orderId: string };
+  FarmerReturns: undefined;
+
 
   // Finance
   FarmerEarnings: undefined;

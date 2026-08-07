@@ -37,7 +37,7 @@ import Reanimated, {
   withDelay,
   withSpring,
   Easing,
-} from 'react-native-reanimated';
+} from '../../utils/reanimatedStub';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Toast from 'react-native-toast-message';
 

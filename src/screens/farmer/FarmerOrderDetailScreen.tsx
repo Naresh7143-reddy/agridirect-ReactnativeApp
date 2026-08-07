@@ -28,7 +28,7 @@ import Reanimated, {
   withSequence,
   withTiming,
   Easing,
-} from 'react-native-reanimated';
+} from '../../utils/reanimatedStub';
 import Modal from 'react-native-modal';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Toast from 'react-native-toast-message';
@@ -523,10 +523,10 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               <View style={styles.buyerInfo}>
                 <Text style={styles.buyerName}>{order.deliveryAgentName ?? 'Assigned'}</Text>
                 <Text style={styles.buyerPhone}>
-                  {order.status === 'ASSIGNED' ? '🟡 Assigned' :
-                   order.status === 'PICKED_UP' ? '🚴 Picked Up' :
-                   order.status === 'IN_TRANSIT' || order.status === 'ON_THE_WAY' ? '🚀 On the Way' :
-                   order.status === 'DELIVERED' ? '✅ Delivered' : order.status}
+                  {(order.status as string) === 'ASSIGNED' ? '🟡 Assigned' :
+                   (order.status as string) === 'PICKED_UP' ? '🚴 Picked Up' :
+                   (order.status as string) === 'IN_TRANSIT' || (order.status as string) === 'ON_THE_WAY' ? '🚀 On the Way' :
+                   (order.status as string) === 'DELIVERED' ? '✅ Delivered' : order.status}
                 </Text>
               </View>
               {(order as any).deliveryAgentPhone ? (

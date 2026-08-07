@@ -156,7 +156,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onPress, onAccept, onRejec
         </View>
 
         <Text style={cardStyles.buyerName} numberOfLines={1}>
-          {order.buyerName ?? 'Buyer'}{order.deliveryAddress?.city ? ` · ${order.deliveryAddress.city}` : ''}
+          {order.buyerName ?? 'Buyer'}{typeof order.deliveryAddress === 'object' && order.deliveryAddress?.city ? ` · ${order.deliveryAddress.city}` : ''}
         </Text>
 
         <Text style={cardStyles.summary}>
@@ -164,7 +164,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onPress, onAccept, onRejec
         </Text>
 
         <View style={cardStyles.bottomRow}>
-          <Text style={cardStyles.total}>₹{(order.grandTotal ?? 0).toFixed(2)}</Text>
+          <Text style={cardStyles.total}>₹{((order.grandTotal ?? order.totalAmount ?? 0)).toFixed(2)}</Text>
           <StatusBadge status={order.status} />
         </View>
       </View>
@@ -430,10 +430,9 @@ const FarmerOrdersScreen: React.FC = () => {
     if (showRefresh) setRefreshing(true);
     try {
       const res: any = await ordersApi.getFarmerOrders({ limit: 50 } as any);
-      // Backend returns res.data as a plain array — handle both array and
-      // paginated shapes defensively so orders never disappear.
-      const data = res?.data;
-      const list = Array.isArray(data) ? data : (data?.items ?? data?.content ?? []);
+      // API client unwraps response.data; handle both array and paginated shapes
+      const raw = res?.data ?? res;
+      const list = Array.isArray(raw) ? raw : (raw?.items ?? raw?.content ?? []);
       setOrders(list);
     } catch {
       Toast.show({ type: 'error', text1: 'Failed to load orders' });

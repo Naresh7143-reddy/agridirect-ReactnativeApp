@@ -98,10 +98,14 @@ export const DeliveryHomeScreen: React.FC = () => {
         deliveryApi.getAssignedOrders().catch(() => ({ data: [] } as any)),
         deliveryApi.getEarnings().catch(() => ({ data: null } as any)),
       ]);
-      setAvailable(Array.isArray((availRes as any).data) ? (availRes as any).data : []);
-      const assignedList = (assignRes as any).data?.items ?? (assignRes as any).data ?? [];
+      // API client unwraps response.data — handle both wrapped and unwrapped shapes
+      const availData: any = (availRes as any)?.data ?? availRes;
+      const assignData: any = (assignRes as any)?.data ?? assignRes;
+      const earningsData: any = (earningsRes as any)?.data ?? earningsRes;
+      setAvailable(Array.isArray(availData) ? availData : []);
+      const assignedList = assignData?.items ?? assignData?.content ?? assignData ?? [];
       setAssigned(Array.isArray(assignedList) ? assignedList : []);
-      setEarnings((earningsRes as any).data);
+      setEarnings(earningsData);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, []);
@@ -248,15 +252,29 @@ export const DeliveryHomeScreen: React.FC = () => {
                 </View>
               </View>
 
-              {/* Status action */}
+              {/* Status action + Navigate */}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                {/* Navigate button — always visible */}
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: 'rgba(255,255,255,0.25)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)' }]}
+                  onPress={() => navigation.navigate('DeliveryNavigation', {
+                    orderId: activeDelivery.id || (activeDelivery as any).orderId,
+                    pickupLat: activeDelivery.pickupLat ?? 0,
+                    pickupLng: activeDelivery.pickupLng ?? 0,
+                    dropLat: activeDelivery.dropLat ?? 0,
+                    dropLng: activeDelivery.dropLng ?? 0,
+                  })}
+                >
+                  <Text style={styles.actionBtnText}>🗺️ Navigate</Text>
+                </TouchableOpacity>
+
                 {activeDelivery.status === 'assigned' && (
                   <TouchableOpacity
                     style={styles.actionBtn}
                     onPress={() => updateStatus(activeDelivery.id || (activeDelivery as any).orderId, 'PICKED_UP', 'Picked Up')}
                     disabled={updatingId === activeDelivery.id}
                   >
-                    {updatingId === activeDelivery.id ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.actionBtnText}>📦 Mark Picked Up</Text>}
+                    {updatingId === activeDelivery.id ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.actionBtnText}>📦 Picked Up</Text>}
                   </TouchableOpacity>
                 )}
                 {(activeDelivery.status === 'picked_up' || activeDelivery.status === 'in_transit') && (
@@ -265,7 +283,7 @@ export const DeliveryHomeScreen: React.FC = () => {
                     onPress={() => updateStatus(activeDelivery.id || (activeDelivery as any).orderId, 'DELIVERED', 'Delivered')}
                     disabled={updatingId === activeDelivery.id}
                   >
-                    {updatingId === activeDelivery.id ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.actionBtnText}>✅ Mark Delivered</Text>}
+                    {updatingId === activeDelivery.id ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.actionBtnText}>✅ Delivered</Text>}
                   </TouchableOpacity>
                 )}
               </View>

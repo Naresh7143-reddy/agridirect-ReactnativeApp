@@ -18,11 +18,11 @@ import axios, {
 } from 'axios';
 import { EventEmitter } from 'eventemitter3';
 import {
-  getAuthToken,
-  getRefreshToken,
-  setAuthToken,
-  clearAuthStorage,
-} from '../utils/storage';
+  getCachedToken,
+  getCachedRefreshToken,
+  setCachedToken,
+  clearPersistedTokens,
+} from '../utils/tokenCache';
 import ENV from '../config/env';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -30,7 +30,6 @@ import ENV from '../config/env';
 export const BASE_URL = ENV.API_URL;
 
 // ─── Auth event bus ───────────────────────────────────────────────────────────
-// Allows navigation layer to listen for forced-logout without circular imports
 
 export const authEvents = new EventEmitter<{ logout: [] }>();
 
@@ -49,7 +48,7 @@ const client: AxiosInstance = axios.create({
 
 client.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = getAuthToken();
+    const token = getCachedToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -65,17 +64,15 @@ interface RetryableConfig extends AxiosRequestConfig {
 }
 
 client.interceptors.response.use(
-  // Success: unwrap so callers receive ApiResponse<T> directly (no .then(r=>r.data))
   (response: AxiosResponse) => response.data,
 
   async (error) => {
     const originalRequest = error.config as RetryableConfig;
 
-    // 401 — attempt silent token refresh once
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      const refreshToken = getRefreshToken();
+      const refreshToken = getCachedRefreshToken();
       if (refreshToken) {
         try {
           const { data } = await axios.post(
@@ -86,7 +83,7 @@ client.interceptors.response.use(
           const newToken: string =
             data?.data?.accessToken ?? data?.accessToken;
           if (newToken) {
-            setAuthToken(newToken);
+            setCachedToken(newToken);
             if (originalRequest.headers) {
               (originalRequest.headers as Record<string, string>).Authorization =
                 `Bearer ${newToken}`;
@@ -98,12 +95,10 @@ client.interceptors.response.use(
         }
       }
 
-      // Clear stored creds and broadcast logout
-      clearAuthStorage();
+      await clearPersistedTokens();
       authEvents.emit('logout');
     }
 
-    // Normalise error
     return Promise.reject({
       message:
         error.response?.data?.message ??

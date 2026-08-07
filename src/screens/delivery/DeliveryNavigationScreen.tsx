@@ -5,10 +5,12 @@ import {
   Animated,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   ActivityIndicator,
 } from 'react-native';
+
 import ConfettiCannon from 'react-native-confetti-cannon';
 import Modal from 'react-native-modal';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -49,6 +51,9 @@ export const DeliveryNavigationScreen: React.FC = () => {
   const confettiRef = useRef<any>(null);
   const earningsAnim = useRef(new Animated.Value(0)).current;
 
+  const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState('');
+
   const currentStep = PHASE_STEPS[phaseIndex];
 
   useEffect(() => {
@@ -59,10 +64,29 @@ export const DeliveryNavigationScreen: React.FC = () => {
   }, [done, earningsAnim]);
 
   const handleAction = useCallback(async () => {
+    // If completing delivery, verify OTP first
+    if (currentStep.deliveryStatus === 'DELIVERED') {
+      if (otp.trim().length !== 6) {
+        setOtpError('Please enter the 6-digit OTP provided by buyer');
+        return;
+      }
+      setOtpError('');
+    }
+
     setUpdating(true);
-    setShowConfirm(false);
     try {
+      if (currentStep.deliveryStatus === 'DELIVERED') {
+        try {
+          await deliveryApi.verifyOtp(orderId, otp.trim());
+        } catch (otpErr: any) {
+          Alert.alert('Invalid OTP', otpErr?.response?.data?.message || 'The OTP entered is incorrect. Ask buyer for valid 6-digit OTP.');
+          setUpdating(false);
+          return;
+        }
+      }
+
       await deliveryApi.updateOrderStatus(orderId, currentStep.deliveryStatus as any);
+      setShowConfirm(false);
       if (phaseIndex >= PHASE_STEPS.length - 1) {
         setDone(true);
       } else {
@@ -73,7 +97,8 @@ export const DeliveryNavigationScreen: React.FC = () => {
     } finally {
       setUpdating(false);
     }
-  }, [orderId, currentStep, phaseIndex]);
+  }, [orderId, currentStep, phaseIndex, otp]);
+
 
   if (done) {
     return (
@@ -134,25 +159,48 @@ export const DeliveryNavigationScreen: React.FC = () => {
         <View style={styles.navInfo}>
           <View>
             <Text style={styles.phaseLabel}>{currentStep?.label}</Text>
-            <Text style={styles.distanceText}>~1.2 km • 5 min away</Text>
+            <Text style={styles.distanceText}>
+              Destination: {phaseIndex <= 1 ? '🌾 Farm Pickup' : '🏠 Buyer Dropoff'}
+            </Text>
           </View>
           <View style={styles.etaBox}>
             <Text style={styles.etaLabel}>ETA</Text>
-            <Text style={styles.etaTime}>5 min</Text>
+            <Text style={styles.etaTime}>Live</Text>
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[styles.actionBtn, updating && styles.actionBtnDisabled]}
-          onPress={() => setShowConfirm(true)}
-          disabled={updating}
-        >
-          {updating ? (
-            <ActivityIndicator color={Colors.white} />
-          ) : (
-            <Text style={styles.actionBtnText}>{currentStep?.action} ✓</Text>
-          )}
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <TouchableOpacity
+            style={styles.navGoogleBtn}
+            onPress={() => {
+              const destLat = phaseIndex <= 1 ? (route.params.pickupLat || 13.0827) : (route.params.dropLat || 13.0827);
+              const destLng = phaseIndex <= 1 ? (route.params.pickupLng || 80.2707) : (route.params.dropLng || 80.2707);
+              const url = require('react-native').Platform.select({
+                ios: `comgooglemaps://?daddr=${destLat},${destLng}&directionsmode=driving`,
+                android: `google.navigation:q=${destLat},${destLng}&mode=d`,
+              });
+              const fallback = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`;
+              const { Linking } = require('react-native');
+              Linking.canOpenURL(url)
+                .then((ok: boolean) => ok ? Linking.openURL(url) : Linking.openURL(fallback))
+                .catch(() => Linking.openURL(fallback));
+            }}
+          >
+            <Text style={styles.navGoogleText}>🗺️ Navigate</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionBtn, updating && styles.actionBtnDisabled, { flex: 1 }]}
+            onPress={() => setShowConfirm(true)}
+            disabled={updating}
+          >
+            {updating ? (
+              <ActivityIndicator color={Colors.white} />
+            ) : (
+              <Text style={styles.actionBtnText}>{currentStep?.action} ✓</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Confirmation Modal */}
@@ -162,18 +210,54 @@ export const DeliveryNavigationScreen: React.FC = () => {
         style={styles.modal}
       >
         <View style={styles.confirmSheet}>
-          <Text style={styles.confirmTitle}>Confirm Action</Text>
-          <Text style={styles.confirmMessage}>Are you sure you want to mark: "{currentStep?.action}"?</Text>
+          <Text style={styles.confirmTitle}>
+            {currentStep?.deliveryStatus === 'DELIVERED' ? '🔑 Enter Buyer Delivery OTP' : 'Confirm Action'}
+          </Text>
+          <Text style={styles.confirmMessage}>
+            {currentStep?.deliveryStatus === 'DELIVERED'
+              ? 'Ask buyer for their 6-digit Delivery OTP sent to their phone upon arrival.'
+              : `Are you sure you want to mark: "${currentStep?.action}"?`}
+          </Text>
+
+          {currentStep?.deliveryStatus === 'DELIVERED' && (
+            <View style={{ marginBottom: 16 }}>
+              <TextInput
+                style={styles.otpInput}
+                keyboardType="number-pad"
+                maxLength={6}
+                value={otp}
+                onChangeText={(val) => {
+                  setOtp(val.replace(/\D/g, ''));
+                  setOtpError('');
+                }}
+                placeholder="1 2 3 4 5 6"
+                placeholderTextColor={Colors.textHint}
+              />
+              {!!otpError && <Text style={styles.otpErrorText}>{otpError}</Text>}
+            </View>
+          )}
+
           <View style={styles.confirmActions}>
             <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowConfirm(false)}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.confirmBtn} onPress={handleAction}>
-              <Text style={styles.confirmBtnText}>Confirm</Text>
+            <TouchableOpacity
+              style={[styles.confirmBtn, updating && styles.actionBtnDisabled]}
+              onPress={handleAction}
+              disabled={updating}
+            >
+              {updating ? (
+                <ActivityIndicator color={Colors.white} size="small" />
+              ) : (
+                <Text style={styles.confirmBtnText}>
+                  {currentStep?.deliveryStatus === 'DELIVERED' ? 'Verify & Deliver' : 'Confirm'}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
     </View>
   );
 };
@@ -204,6 +288,8 @@ const styles = StyleSheet.create({
   actionBtn: { backgroundColor: Colors.primary, borderRadius: borderRadius.lg, paddingVertical: 15, alignItems: 'center' },
   actionBtnDisabled: { backgroundColor: Colors.border },
   actionBtnText: { color: Colors.white, fontWeight: '700', fontSize: 16 },
+  navGoogleBtn: { borderWidth: 2, borderColor: Colors.primary, borderRadius: borderRadius.lg, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  navGoogleText: { color: Colors.primary, fontWeight: '700', fontSize: 14 },
   successScreen: { flex: 1, backgroundColor: Colors.white, alignItems: 'center', justifyContent: 'center', padding: 24 },
   earningsCard: { alignItems: 'center', width: '100%' },
   deliveredIcon: { fontSize: 72 },
@@ -224,4 +310,24 @@ const styles = StyleSheet.create({
   cancelBtnText: { color: Colors.textSecondary, fontWeight: '700', fontSize: 15 },
   confirmBtn: { flex: 1, borderRadius: borderRadius.lg, paddingVertical: 14, alignItems: 'center', backgroundColor: Colors.primary },
   confirmBtnText: { color: Colors.white, fontWeight: '700', fontSize: 15 },
+  otpInput: {
+    backgroundColor: Colors.background,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderRadius: borderRadius.lg,
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: 8,
+    textAlign: 'center',
+    paddingVertical: 12,
+    color: Colors.textPrimary,
+  },
+  otpErrorText: {
+    color: Colors.error,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
+    textAlign: 'center',
+  },
 });
+

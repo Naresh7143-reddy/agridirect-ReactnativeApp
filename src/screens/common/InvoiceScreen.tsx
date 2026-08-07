@@ -138,13 +138,15 @@ const InvoiceScreen: React.FC = () => {
           {/* Delivery address */}
           <Text style={styles.sectionTitle}>Delivered To</Text>
           <Text style={styles.addressText}>
-            {[
-              order.deliveryAddress.line1,
-              order.deliveryAddress.line2,
-              order.deliveryAddress.city,
-              order.deliveryAddress.state,
-              order.deliveryAddress.pincode,
-            ].filter(Boolean).join(', ')}
+            {typeof order.deliveryAddress === 'string'
+              ? order.deliveryAddress
+              : [
+                  order.deliveryAddress?.line1,
+                  order.deliveryAddress?.line2,
+                  order.deliveryAddress?.city,
+                  order.deliveryAddress?.state,
+                  order.deliveryAddress?.pincode,
+                ].filter(Boolean).join(', ')}
           </Text>
 
           <Divider />

@@ -28,29 +28,59 @@ function useKeepBackendAwake() {
   }, []);
 }
 
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('[ErrorBoundary] Caught:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   useKeepBackendAwake();
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <Provider store={store}>
-        <PersistGate
-          loading={
-            <View style={styles.loading}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-            </View>
-          }
-          persistor={persistor}
-        >
-          <QueryClientProvider client={queryClient}>
-            <SafeAreaProvider>
-              <AppNavigator />
-              <OfflineBanner />
-              <Toast />
-            </SafeAreaProvider>
-          </QueryClientProvider>
-        </PersistGate>
-      </Provider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={styles.root}>
+        <Provider store={store}>
+          <PersistGate
+            loading={
+              <View style={styles.loading}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+              </View>
+            }
+            persistor={persistor}
+          >
+            <QueryClientProvider client={queryClient}>
+              <SafeAreaProvider>
+                <AppNavigator />
+                <OfflineBanner />
+                <Toast />
+              </SafeAreaProvider>
+            </QueryClientProvider>
+          </PersistGate>
+        </Provider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
 

@@ -1,5 +1,4 @@
-// FILE: src/screens/common/HelpSupportScreen.tsx
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -16,9 +15,13 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import Modal from 'react-native-modal';
 import Toast from 'react-native-toast-message';
 import { Colors } from '../../theme/colors';
 import { borderRadius, shadow } from '../../theme/spacing';
+import { supportApi, ChatMessageItem } from '../../api/support';
+
+
 
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -207,6 +210,57 @@ const HelpSupportScreen: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [description, setDescription] = useState('');
+  const [chatVisible, setChatVisible] = useState(false);
+  const [messages, setMessages] = useState<ChatMessageItem[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [sendingMsg, setSendingMsg] = useState(false);
+
+
+  useEffect(() => {
+    if (chatVisible) {
+      supportApi.getMessages()
+        .then(res => setMessages(res.data || []))
+        .catch(() => setMessages([
+          { id: '1', senderId: 'support', senderName: 'AgriDirect Support', senderRole: 'ADMIN', text: 'Hello! How can we assist you with your farming or order today?', timestamp: 'Just now', isAdmin: true }
+        ]));
+    }
+  }, [chatVisible]);
+
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim()) return;
+    const msgText = chatInput.trim();
+    setChatInput('');
+    setSendingMsg(true);
+    try {
+      const res = await supportApi.sendMessage(msgText);
+      if (res.data) {
+        setMessages(prev => [...prev, res.data]);
+      } else {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          senderId: 'me',
+          senderName: 'You',
+          senderRole: 'USER',
+          text: msgText,
+          timestamp: 'Just now',
+          isAdmin: false,
+        }]);
+      }
+    } catch {
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        senderId: 'me',
+        senderName: 'You',
+        senderRole: 'USER',
+        text: msgText,
+        timestamp: 'Just now',
+        isAdmin: false,
+      }]);
+    } finally {
+      setSendingMsg(false);
+    }
+  };
+
 
   const filteredFAQ = FAQ_DATA.map((section) => ({
     ...section,
@@ -290,11 +344,14 @@ const HelpSupportScreen: React.FC = () => {
         {/* Contact cards */}
         <Text style={styles.contactTitle}>Still need help?</Text>
         <View style={styles.contactRow}>
-          <View style={[styles.contactCard, { backgroundColor: Colors.successLight }]}>
+          <TouchableOpacity
+            style={[styles.contactCard, { backgroundColor: Colors.successLight }]}
+            onPress={() => setChatVisible(true)}
+          >
             <Icon name="chatbubble-ellipses-outline" size={24} color={Colors.success} />
-            <Text style={[styles.contactCardLabel, { color: Colors.success }]}>Chat</Text>
-            <Text style={styles.contactCardSub}>Coming soon</Text>
-          </View>
+            <Text style={[styles.contactCardLabel, { color: Colors.success }]}>Live Chat</Text>
+            <Text style={styles.contactCardSub}>Chat with Us</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.contactCard, { backgroundColor: Colors.infoLight }]}
             onPress={() => Linking.openURL('tel:+919876543210')}
@@ -312,6 +369,7 @@ const HelpSupportScreen: React.FC = () => {
             <Text style={styles.contactCardSub}>support@</Text>
           </TouchableOpacity>
         </View>
+
 
         {/* Report Problem */}
         <Text style={styles.contactTitle}>Report a Problem</Text>
@@ -348,9 +406,67 @@ const HelpSupportScreen: React.FC = () => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Live Chat Modal */}
+      <Modal
+        isVisible={chatVisible}
+        onBackdropPress={() => setChatVisible(false)}
+        style={{ margin: 0, justifyContent: 'flex-end' }}
+      >
+        <View style={{ backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '80%', padding: 16 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.success }} />
+              <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.textPrimary }}>Live Customer Support</Text>
+            </View>
+            <TouchableOpacity onPress={() => setChatVisible(false)}>
+              <Icon name="close" size={24} color={Colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ flex: 1, marginVertical: 12 }}>
+            {messages.map((m) => (
+              <View
+                key={m.id}
+                style={{
+                  alignSelf: m.isAdmin ? 'flex-start' : 'flex-end',
+                  backgroundColor: m.isAdmin ? Colors.background : Colors.primary,
+                  padding: 12,
+                  borderRadius: 16,
+                  marginBottom: 8,
+                  maxWidth: '80%',
+                }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: m.isAdmin ? Colors.primary : Colors.white, marginBottom: 2 }}>
+                  {m.senderName}
+                </Text>
+                <Text style={{ fontSize: 14, color: m.isAdmin ? Colors.textPrimary : Colors.white }}>{m.text}</Text>
+              </View>
+            ))}
+          </ScrollView>
+
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <TextInput
+              style={{ flex: 1, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: Colors.textPrimary }}
+              placeholder="Type your message..."
+              placeholderTextColor={Colors.textHint}
+              value={chatInput}
+              onChangeText={setChatInput}
+            />
+            <TouchableOpacity
+              style={{ backgroundColor: Colors.primary, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }}
+              onPress={handleSendChatMessage}
+              disabled={sendingMsg}
+            >
+              <Icon name="send" size={20} color={Colors.white} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
+
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 

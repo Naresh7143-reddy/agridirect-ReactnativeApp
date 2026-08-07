@@ -65,6 +65,15 @@ export const deliveryApi = {
     client.put(`/api/delivery/orders/${id}/status`, { status, note }),
 
   /**
+   * Verify buyer delivery OTP before completing delivery
+   */
+  verifyOtp: (
+    id: string,
+    otp: string,
+  ): Promise<ApiResponse<{ success: boolean; message?: string }>> =>
+    client.post(`/api/orders/${id}/otp/verify`, { otp }),
+
+  /**
    * Confirm delivery with proof of delivery image.
    * Sends as base64 encoded string.
    */

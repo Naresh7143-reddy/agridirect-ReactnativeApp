@@ -33,6 +33,21 @@ export const ordersApi = {
   trackOrder: (id: string): Promise<ApiResponse<TrackingEvent[]>> =>
     client.get(`/api/buyer/orders/${id}/track`),
 
+  /** Get delivery agent's live location + profile for tracking map */
+  getAgentLocation: (id: string): Promise<ApiResponse<{
+    available: boolean;
+    lat: number;
+    lng: number;
+    status: string;
+    agentName?: string;
+    agentPhone?: string;
+    vehicleType?: string;
+    vehicleRegistration?: string;
+    rating?: number;
+    totalDeliveries?: number;
+  }>> =>
+    client.get(`/api/buyer/orders/${id}/agent-location`),
+
   /** Submit a review/rating after delivery */
   rateOrder: (
     id: string,

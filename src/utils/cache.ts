@@ -62,18 +62,18 @@ export function cacheDelete(key: string): void {
 
 /** Remove all HTTP cache entries (e.g. after mutations). */
 export function cacheInvalidateAll(): void {
-  const allKeys = storage.getAllKeys();
+  const allKeys: string[] = storage.getAllKeys?.() ?? [];
   allKeys
-    .filter((k) => k.startsWith(CACHE_PREFIX))
-    .forEach((k) => storage.delete(k));
+    .filter((k: string) => k.startsWith(CACHE_PREFIX))
+    .forEach((k: string) => storage.delete(k));
 }
 
 /** Invalidate a specific pattern (prefix match). */
 export function cacheInvalidatePattern(pattern: string): void {
-  const allKeys = storage.getAllKeys();
+  const allKeys: string[] = storage.getAllKeys?.() ?? [];
   allKeys
-    .filter((k) => k.startsWith(`${CACHE_PREFIX}${pattern}`))
-    .forEach((k) => storage.delete(k));
+    .filter((k: string) => k.startsWith(`${CACHE_PREFIX}${pattern}`))
+    .forEach((k: string) => storage.delete(k));
 }
 
 // ─── Typed shortcuts ──────────────────────────────────────────────────────────

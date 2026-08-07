@@ -40,6 +40,8 @@ import TermsConditionsScreen from '../screens/common/TermsConditionsScreen';
 import PrivacyPolicyScreen from '../screens/common/PrivacyPolicyScreen';
 import HelpSupportScreen from '../screens/common/HelpSupportScreen';
 import AboutScreen from '../screens/common/AboutScreen';
+import FarmerReturnsScreen from '../screens/farmer/FarmerReturnsScreen';
+
 
 // ─── Tab configuration ────────────────────────────────────────────────────────
 
@@ -212,6 +214,8 @@ export const FarmerNavigator: React.FC = () => (
 
     {/* Orders */}
     <Stack.Screen name="FarmerOrderDetail" component={FarmerOrderDetailScreen} options={slide} />
+    <Stack.Screen name="FarmerReturns"     component={FarmerReturnsScreen as any} options={slide} />
+
 
     {/* Finance */}
     <Stack.Screen name="FarmerEarnings"   component={FarmerEarningsScreen}   options={slide} />

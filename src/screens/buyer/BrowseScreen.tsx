@@ -111,7 +111,15 @@ export const BrowseScreen: React.FC = () => {
       if (maxPrice) params.maxPrice = Number(maxPrice);
       if (selectedCategory) params.categoryId = selectedCategory;
       const res: any = await productsApi.search(q, params);
-      setResults(res.data?.items || []);
+      // API client unwraps response.data, so res is the payload directly.
+      // Backend may return: { items:[...] } or { data:{ items:[...] } } or [...]
+      const items =
+        Array.isArray(res) ? res :
+        Array.isArray(res?.items) ? res.items :
+        Array.isArray(res?.data?.items) ? res.data.items :
+        Array.isArray(res?.data) ? res.data :
+        [];
+      setResults(items);
     } catch {
       setResults([]);
     } finally {

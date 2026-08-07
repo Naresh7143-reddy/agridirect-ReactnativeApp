@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, ScrollView, StyleSheet,
+  ActivityIndicator, Alert, ScrollView, StyleSheet,
   Text, TouchableOpacity, View,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -24,15 +24,34 @@ export default function ProductPreviewScreen() {
 
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [toggling, setToggling] = useState(false);
   const [imgIndex, setImgIndex] = useState(0);
 
   const load = useCallback(async () => {
     try {
-      const res = await productsApi.getById(productId);
+      const res = await productsApi.getFarmerProductById(productId);
       setProduct(res.data);
-    } catch {}
+    } catch {
+      try {
+        const res = await productsApi.getById(productId);
+        setProduct(res.data);
+      } catch {}
+    }
     finally { setLoading(false); }
   }, [productId]);
+
+  const toggleAvailability = useCallback(async () => {
+    if (!product) return;
+    setToggling(true);
+    try {
+      await productsApi.toggleAvailability(product.id);
+      setProduct(prev => prev ? { ...prev, isAvailable: !prev.isAvailable } : prev);
+    } catch {
+      Alert.alert('Error', 'Could not update availability');
+    } finally {
+      setToggling(false);
+    }
+  }, [product]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -40,7 +59,8 @@ export default function ProductPreviewScreen() {
   if (!product) return <View style={s.center}><Text style={s.err}>Product not found</Text></View>;
 
   const images = product.images ?? [];
-  const currentImg = images[imgIndex]?.url ?? '';
+  const currentImg = images[imgIndex]?.url ?? product.primaryImageUrl ?? '';
+  const stockVal = product.stockQuantity ?? product.stock;
 
   return (
     <View style={s.root}>
@@ -91,11 +111,18 @@ export default function ProductPreviewScreen() {
               <Text style={s.unit}>per {product.unit}</Text>
             </View>
             <View style={s.tagsRow}>
-              <View style={[s.tag, {backgroundColor: product.isAvailable ? Colors.successLight : Colors.errorLight}]}>
-                <Text style={[s.tagText, {color: product.isAvailable ? Colors.success : Colors.error}]}>
-                  {product.isAvailable ? 'Available' : 'Unavailable'}
-                </Text>
-              </View>
+              <TouchableOpacity
+                style={[s.tag, {backgroundColor: product.isAvailable ? Colors.successLight : Colors.errorLight}]}
+                onPress={toggleAvailability}
+                disabled={toggling}
+              >
+                {toggling
+                  ? <ActivityIndicator size="small" color={product.isAvailable ? Colors.success : Colors.error}/>
+                  : <Text style={[s.tagText, {color: product.isAvailable ? Colors.success : Colors.error}]}>
+                      {product.isAvailable ? '✓ Available — tap to disable' : '✗ Unavailable — tap to enable'}
+                    </Text>
+                }
+              </TouchableOpacity>
               {product.isOrganic && (
                 <View style={[s.tag, {backgroundColor: Colors.primary + '22'}]}>
                   <Text style={[s.tagText, {color: Colors.primary}]}>🌿 Organic</Text>
@@ -109,7 +136,7 @@ export default function ProductPreviewScreen() {
             <View style={s.infoRow}>
               <Icon name="layers-outline" size={16} color={Colors.primary}/>
               <Text style={s.infoLabel}>Stock</Text>
-              <Text style={s.infoVal}>{product.stock} {product.unit}</Text>
+              <Text style={s.infoVal}>{stockVal != null ? stockVal : 'N/A'} {product.unit}</Text>
             </View>
             {product.category && (
               <View style={s.infoRow}>

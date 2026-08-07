@@ -123,9 +123,8 @@ export const OrdersScreen: React.FC = () => {
   const loadOrders = useCallback(async () => {
     try {
       const res: any = await ordersApi.getBuyerOrders({ limit: 50 });
-      // Backend returns res.data as a plain array; older code expected
-      // {items:[...]}. Handle both so the list never silently empties.
-      const data = res?.data;
+      // API client unwraps response.data; handle all backend shapes
+      const data = res?.data ?? res;
       const list = Array.isArray(data) ? data : (data?.items ?? data?.content ?? []);
       setOrders(list);
     } catch {

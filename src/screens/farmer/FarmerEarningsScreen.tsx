@@ -241,20 +241,24 @@ const FarmerEarningsScreen: React.FC = () => {
     else from.setFullYear(now.getFullYear() - 1);
 
     try {
-      const res = await farmerApi.getEarnings({
+      const res: any = await farmerApi.getEarnings({
         from: from.toISOString().split('T')[0],
         to: now.toISOString().split('T')[0],
       });
-      const data = res.data;
-      setEarnings({ ...data, byDate: data?.byDate ?? [] });
-    } catch {
-      /* use mock data fallback */
+      // API client unwraps response.data, so res is { totalEarnings, pendingPayouts, paidOut, byDate }
+      // Backend may also use pendingPayout (singular) or pending_payouts — handle all
+      const data: any = res?.data ?? res;
       setEarnings({
-        totalEarnings: 12480,
-        pendingPayouts: 2300,
-        paidOut: 10180,
-        byDate: [],
+        totalEarnings:  data?.totalEarnings  ?? data?.total_earnings  ?? data?.totalRevenue ?? 0,
+        pendingPayouts: data?.pendingPayouts ?? data?.pending_payouts ?? data?.pendingPayout ?? data?.pending ?? 0,
+        paidOut:        data?.paidOut        ?? data?.paid_out        ?? data?.paid         ?? 0,
+        byDate:         Array.isArray(data?.byDate) ? data.byDate :
+                        Array.isArray(data?.by_date) ? data.by_date :
+                        Array.isArray(data?.entries) ? data.entries : [],
       });
+    } catch {
+      /* fallback so UI still shows something */
+      setEarnings({ totalEarnings: 0, pendingPayouts: 0, paidOut: 0, byDate: [] });
     } finally {
       setLoading(false);
     }

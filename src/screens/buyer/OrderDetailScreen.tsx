@@ -39,11 +39,17 @@ export default function OrderDetailScreen() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await ordersApi.getOrderById(orderId);
-      setOrder(res.data);
-    } catch { Alert.alert('Error', 'Could not load order details'); }
-    finally { setLoading(false); }
+      const res: any = await ordersApi.getOrderById(orderId);
+      // API client unwraps response.data, so res is { data: Order } or Order directly
+      const order = res?.data ?? res;
+      setOrder(order);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not load order details');
+    } finally {
+      setLoading(false);
+    }
   }, [orderId]);
 
   useEffect(() => { load(); }, [load]);
@@ -53,7 +59,7 @@ export default function OrderDetailScreen() {
       { text: 'No', style: 'cancel' },
       { text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
         try { await ordersApi.cancel(orderId); load(); }
-        catch { Alert.alert('Error', 'Could not cancel order'); }
+        catch (e: any) { Alert.alert('Error', e?.message || 'Could not cancel order'); }
       }},
     ]);
   };
@@ -139,9 +145,15 @@ export default function OrderDetailScreen() {
 
         <View style={s.card}>
           <Text style={s.sectionTitle}>Delivery Address</Text>
-          <Text style={s.addrText}>{order.deliveryAddress?.line1 ?? ''}</Text>
-          {order.deliveryAddress?.line2 ? <Text style={s.addrText}>{order.deliveryAddress.line2}</Text> : null}
-          <Text style={s.addrText}>{order.deliveryAddress?.city ?? ''}{order.deliveryAddress?.state ? `, ${order.deliveryAddress.state}` : ''}{order.deliveryAddress?.pincode ? ` - ${order.deliveryAddress.pincode}` : ''}</Text>
+          {typeof order.deliveryAddress === 'string' ? (
+            <Text style={s.addrText}>{order.deliveryAddress}</Text>
+          ) : (
+            <>
+              <Text style={s.addrText}>{order.deliveryAddress?.line1 ?? ''}</Text>
+              {order.deliveryAddress?.line2 ? <Text style={s.addrText}>{order.deliveryAddress.line2}</Text> : null}
+              <Text style={s.addrText}>{order.deliveryAddress?.city ?? ''}{order.deliveryAddress?.state ? `, ${order.deliveryAddress.state}` : ''}{order.deliveryAddress?.pincode ? ` - ${order.deliveryAddress.pincode}` : ''}</Text>
+            </>
+          )}
         </View>
 
         {order.deliveryAgentName ? (

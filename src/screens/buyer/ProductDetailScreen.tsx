@@ -163,6 +163,23 @@ export const ProductDetailScreen: React.FC = () => {
             )}
           </View>
 
+          {/* Harvest Date, Shelf Life, MOQ & Organic Badges */}
+          <View style={styles.metaRow}>
+            <View style={styles.metaBadge}>
+              <Text style={styles.metaBadgeText}>🌾 Harvested: Today</Text>
+            </View>
+            <View style={styles.metaBadge}>
+              <Text style={styles.metaBadgeText}>⏳ Shelf Life: 5 Days</Text>
+            </View>
+            <View style={styles.metaBadge}>
+              <Text style={styles.metaBadgeText}>📦 MOQ: 1 {product.unit}</Text>
+            </View>
+            <View style={[styles.metaBadge, { backgroundColor: Colors.successLight }]}>
+              <Text style={[styles.metaBadgeText, { color: Colors.success }]}>✓ Organic Certified</Text>
+            </View>
+          </View>
+
+
           {/* Quantity Stepper */}
           <View style={styles.stepperRow}>
             <Text style={styles.stepperLabel}>Quantity:</Text>
@@ -298,9 +315,12 @@ const styles = StyleSheet.create({
   freshBadge: { backgroundColor: Colors.successLight, borderRadius: borderRadius.sm, paddingHorizontal: 8, paddingVertical: 4 },
   freshBadgeText: { color: Colors.primary, fontSize: 12, fontWeight: '600' },
   price: { fontSize: 24, fontWeight: '700', color: Colors.primary },
-  ratingWrap: { backgroundColor: Colors.warningLight, borderRadius: borderRadius.sm, paddingHorizontal: 8, paddingVertical: 4 },
-  ratingText: { color: Colors.warning, fontWeight: '700', fontSize: 14 },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 12 },
+  ratingWrap: { backgroundColor: Colors.primaryLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: borderRadius.full },
+  ratingText: { color: Colors.primary, fontWeight: '700', fontSize: 13 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 10 },
+  metaBadge: { backgroundColor: Colors.background, paddingHorizontal: 10, paddingVertical: 5, borderRadius: borderRadius.sm, borderWidth: 1, borderColor: Colors.border },
+  metaBadgeText: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary },
+  stepperRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 16 },
   stepperLabel: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
   addBtn: { flex: 1, backgroundColor: Colors.primary, borderRadius: borderRadius.md, paddingVertical: 12, alignItems: 'center' },
   addBtnDisabled: { backgroundColor: Colors.border },

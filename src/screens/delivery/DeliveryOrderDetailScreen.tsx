@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Linking, ScrollView,
+  ActivityIndicator, Alert, Linking, Platform, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -97,6 +97,35 @@ export default function DeliveryOrderDetailScreen() {
           </View>
         </View>
 
+        {/* Route Navigation Button */}
+        {(order.pickupLat || order.dropLat) && (
+          <View style={s.card}>
+            <Text style={s.sectionTitle}>Navigation</Text>
+            <TouchableOpacity
+              style={s.openMapsBtn}
+              onPress={() => {
+                const lat = order.status === 'assigned' ? order.pickupLat : order.dropLat;
+                const lng = order.status === 'assigned' ? order.pickupLng : order.dropLng;
+                if (lat && lng) {
+                  const url = Platform.select({
+                    ios: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
+                    android: `google.navigation:q=${lat},${lng}&mode=d`,
+                  });
+                  const fallback = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+                  if (url) {
+                    Linking.canOpenURL(url)
+                      .then(ok => ok ? Linking.openURL(url) : Linking.openURL(fallback))
+                      .catch(() => Linking.openURL(fallback));
+                  }
+                }
+              }}
+            >
+              <Icon name="navigate" size={18} color={Colors.white} />
+              <Text style={s.openMapsText}>Open in Google Maps</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Pickup */}
         <View style={s.card}>
           <View style={s.rowBetween}>
@@ -187,4 +216,6 @@ const s = StyleSheet.create({
   actionBtn:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,borderRadius:borderRadius.lg,padding:spacing.base},
   actionText:{color:Colors.white,fontWeight:'700',fontSize:16},
   disabledBtn:{opacity:0.6},
+  openMapsBtn:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,backgroundColor:Colors.primary,borderRadius:borderRadius.md,paddingVertical:12},
+  openMapsText:{color:Colors.white,fontWeight:'700',fontSize:14},
 });

@@ -88,9 +88,15 @@ export default function AdminOrderDetailScreen() {
 
         <View style={s.card}>
           <Text style={s.sectionTitle}>Delivery Address</Text>
-          <Text style={s.addr}>{order.deliveryAddress.line1}</Text>
-          {order.deliveryAddress.line2 ? <Text style={s.addr}>{order.deliveryAddress.line2}</Text> : null}
-          <Text style={s.addr}>{order.deliveryAddress.city}, {order.deliveryAddress.state} - {order.deliveryAddress.pincode}</Text>
+          {typeof order.deliveryAddress === 'string' ? (
+            <Text style={s.addr}>{order.deliveryAddress}</Text>
+          ) : (
+            <>
+              <Text style={s.addr}>{order.deliveryAddress?.line1}</Text>
+              {order.deliveryAddress?.line2 ? <Text style={s.addr}>{order.deliveryAddress.line2}</Text> : null}
+              <Text style={s.addr}>{order.deliveryAddress?.city}, {order.deliveryAddress?.state} - {order.deliveryAddress?.pincode}</Text>
+            </>
+          )}
         </View>
 
         <View style={s.card}>

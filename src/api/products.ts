@@ -43,6 +43,10 @@ export const productsApi = {
   ): Promise<PaginatedResponse<Product>> =>
     client.get('/api/farmer/products', { params }),
 
+  /** Single product by ID — farmer view (includes stock, isAvailable, full data) */
+  getFarmerProductById: (id: string): Promise<ApiResponse<Product>> =>
+    client.get(`/api/farmer/products/${id}`),
+
   /** Create a new product listing */
   create: (data: CreateProductRequest): Promise<ApiResponse<Product>> =>
     client.post('/api/farmer/products', data),
