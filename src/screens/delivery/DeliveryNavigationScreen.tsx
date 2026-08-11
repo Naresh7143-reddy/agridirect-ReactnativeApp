@@ -88,7 +88,11 @@ export const DeliveryNavigationScreen: React.FC = () => {
         }
       }
 
-      await deliveryApi.updateOrderStatus(orderId, currentStep.deliveryStatus as any);
+      // Only update backend for actual valid delivery agent statuses
+      if (['PICKED_UP', 'IN_TRANSIT', 'DELIVERED'].includes(currentStep.deliveryStatus)) {
+        await deliveryApi.updateOrderStatus(orderId, currentStep.deliveryStatus as any);
+      }
+      
       setShowConfirm(false);
       if (phaseIndex >= PHASE_STEPS.length - 1) {
         setDone(true);

@@ -28,11 +28,12 @@ const PAST_STATUSES = ['DELIVERED'];
 const CANCELLED_STATUSES = ['CANCELLED'];
 
 function getStatusLabel(status: string): string {
+  const s = status?.toUpperCase() || '';
   const labels: Record<string, string> = {
     PENDING: 'Pending', ACCEPTED: 'Accepted', PACKED: 'Packed',
     PICKED_UP: 'Picked Up', IN_TRANSIT: 'In Transit', DELIVERED: 'Delivered', CANCELLED: 'Cancelled',
   };
-  return labels[status] || status;
+  return labels[s] || status;
 }
 
 // ── OrderCard ─────────────────────────────────────────────────────────────────
@@ -159,9 +160,10 @@ export const OrdersScreen: React.FC = () => {
   };
 
   const filteredOrders = orders.filter((o) => {
-    if (activeTab === 0) return ACTIVE_STATUSES.includes(o.status);
-    if (activeTab === 1) return PAST_STATUSES.includes(o.status);
-    return CANCELLED_STATUSES.includes(o.status);
+    const s = o.status?.toUpperCase() || '';
+    if (activeTab === 0) return ACTIVE_STATUSES.includes(s);
+    if (activeTab === 1) return PAST_STATUSES.includes(s);
+    return CANCELLED_STATUSES.includes(s);
   });
 
   const renderOrder = ({ item }: { item: Order }) => {

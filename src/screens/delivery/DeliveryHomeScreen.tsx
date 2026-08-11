@@ -172,22 +172,14 @@ export const DeliveryHomeScreen: React.FC = () => {
           loadData();
         } catch (err: any) {
           const msg = err?.message || err?.response?.data?.message || 'Could not update status';
-          if (msg.includes('PACKED') || msg.includes('packed')) {
-            Alert.alert(
-              'Waiting for Farmer',
-              'Farmer has not marked this order as PACKED yet. Please ask the farmer to tap "Mark as Packed" on their AgriDirect app before pickup.',
-              [{ text: 'OK' }]
-            );
-          } else {
-            Alert.alert('Update Failed', msg);
-          }
+          Alert.alert('Update Failed', msg + '\n\nIf the order is stuck, please create a new test order.');
         }
         finally { setUpdatingId(null); }
       }},
     ]);
   };
 
-  const bgColor = toggleBg.interpolate({ inputRange: [0, 1], outputRange: [Colors.error, Colors.primary] });
+  const bgColor = toggleBg.interpolate({ inputRange: [0, 1], outputRange: [Colors.error, Colors.success] });
 
   const activeDelivery = assigned.find(o => ['assigned','picked_up','in_transit'].includes(o.status));
   const todayDelivered = assigned.filter(o => o.status === 'delivered');
@@ -197,119 +189,89 @@ export const DeliveryHomeScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={Colors.gradientGreen} style={styles.header}>
-        <Text style={styles.headerTitle}>AgriDirect Delivery</Text>
-        <Text style={styles.headerSub}>{isOnline ? '🟢 Online — Ready for orders' : '🔴 Offline'}</Text>
-      </LinearGradient>
-
-      {/* Online/offline map area */}
-      <View style={[styles.mapPlaceholder, !isOnline && styles.mapOffline]}>
-        {isOnline ? (
-          <AdvancedMapView
-            mode="tracking"
-            style={StyleSheet.absoluteFill}
-            driverLocation={{ latitude: 13.0827, longitude: 80.2707 }}
-            pickupLocation={{ latitude: 13.088, longitude: 80.265, title: 'Farm Zone' }}
-            dropoffLocation={{ latitude: 13.075, longitude: 80.28, title: 'Customer Zone' }}
-            vehicleType="BIKE"
-            theme="swiggy"
-            showHud={true}
-            showControls={true}
-          />
-        ) : (
-          <>
-            <Text style={styles.offlineIcon}>😴</Text>
-            <Text style={styles.offlineText}>You are offline</Text>
-            <Text style={styles.offlineSub}>Go online to receive orders</Text>
-          </>
-        )}
-      </View>
-
-      {/* Toggle pill */}
-      <View style={styles.toggleWrap}>
-        <Animated.View style={{ transform: [{ scale: toggleScale }] }}>
-          <TouchableOpacity onPress={toggleOnline} disabled={togglingOnline} activeOpacity={0.9}>
-            <Animated.View style={[styles.togglePill, { backgroundColor: bgColor }]}>
-              <Text style={styles.toggleText}>
-                {togglingOnline ? 'Please wait...' : isOnline ? '🔴  Go Offline' : '🟢  Go Online'}
-              </Text>
-            </Animated.View>
-          </TouchableOpacity>
-        </Animated.View>
+      <View style={styles.topBar}>
+        <View>
+          <Text style={styles.headerTitle}>AgriDirect Delivery</Text>
+          <Text style={styles.headerSub}>{isOnline ? 'Searching for orders...' : 'You are offline'}</Text>
+        </View>
+        <TouchableOpacity onPress={toggleOnline} disabled={togglingOnline} activeOpacity={0.8}>
+          <Animated.View style={[styles.inlineToggle, { backgroundColor: bgColor, transform: [{ scale: toggleScale }] }]}>
+            <View style={styles.toggleDot} />
+            <Text style={styles.toggleTextInline}>{isOnline ? 'ONLINE' : 'OFFLINE'}</Text>
+          </Animated.View>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadData(true)} tintColor={Colors.primary} />}
+        contentContainerStyle={{ paddingBottom: 40 }}
       >
-        {/* Today's earnings stats */}
-        <Text style={styles.sectionTitle}>Today's Stats</Text>
-        <View style={styles.statsRow}>
-          {[
-            { icon: '📦', label: 'Deliveries', value: String(earnings?.todayDeliveries ?? earnings?.todayCount ?? todayDelivered.length) },
-            { icon: '💰', label: 'Earned Today', value: `₹${todayEarnedVal}` },
-            { icon: '💵', label: 'This Month', value: `₹${monthEarnedVal}` },
-          ].map(s => (
-            <View key={s.label} style={styles.statCard}>
-              <Text style={styles.statIcon}>{s.icon}</Text>
-              <Text style={styles.statValue}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
+        <LinearGradient colors={[Colors.primaryDark, Colors.primary]} style={styles.dashboardWidget}>
+          <View style={styles.dashHeaderRow}>
+            <Text style={styles.dashTitle}>Today's Earnings</Text>
+            <TouchableOpacity style={styles.dashDetailsBtn}>
+              <Text style={styles.dashDetailsText}>Details →</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.dashAmount}>₹{todayEarnedVal}</Text>
+          
+          <View style={styles.dashBottomRow}>
+            <View style={styles.dashStatBox}>
+              <Text style={styles.dashStatLabel}>Deliveries</Text>
+              <Text style={styles.dashStatValue}>{earnings?.todayDeliveries ?? earnings?.todayCount ?? todayDelivered.length}</Text>
             </View>
-          ))}
-        </View>
+            <View style={styles.dashDivider} />
+            <View style={styles.dashStatBox}>
+              <Text style={styles.dashStatLabel}>This Month</Text>
+              <Text style={styles.dashStatValue}>₹{monthEarnedVal}</Text>
+            </View>
+          </View>
+        </LinearGradient>
 
-        {/* Active delivery banner */}
         {activeDelivery && (
-          <TouchableOpacity
-            style={styles.activeCard}
-            onPress={() =>
-              navigation.navigate('DeliveryOrderDetail', {
-                orderId: activeDelivery.id || (activeDelivery as any)._id || activeDelivery.orderId,
-                initialOrder: activeDelivery,
-              })
-            }
-            activeOpacity={0.85}
-          >
-            <LinearGradient colors={Colors.gradientGreen} style={styles.activeGradient}>
-              <Text style={styles.activeTitle}>🚀 Active Delivery</Text>
-              <Text style={styles.activeId}>Order #{activeDelivery.orderNumber || 'ONGOING'}</Text>
-              <Text style={styles.activeStatus}>{activeDelivery.status.replace(/_/g, ' ').toUpperCase()}</Text>
+          <View style={{ marginBottom: 24 }}>
+            <Text style={styles.sectionTitle}>Current Assignment</Text>
+            <TouchableOpacity
+              style={styles.activeCard}
+              onPress={() =>
+                navigation.navigate('DeliveryOrderDetail', {
+                  orderId: activeDelivery.id || (activeDelivery as any)._id || activeDelivery.orderId,
+                  initialOrder: activeDelivery,
+                })
+              }
+              activeOpacity={0.9}
+            >
+              <View style={styles.activeCardHeader}>
+                <View style={styles.pulseDotWrap}>
+                  <Animated.View style={[styles.pulseDot, { transform: [{ scale: pulse }] }]} />
+                  <Text style={styles.activeStatusText}>{activeDelivery.status.replace(/_/g, ' ').toUpperCase()}</Text>
+                </View>
+                <Text style={styles.activeOrderId}>#{String(activeDelivery.orderNumber || 'ONGOING')}</Text>
+              </View>
 
-              <View style={{ marginTop: 12, gap: 6 }}>
-                <View style={styles.activeRow}>
-                  <Icon name="person-outline" size={13} color="rgba(255,255,255,0.8)" />
-                  <Text style={styles.activeRowText}>Farmer: {activeDelivery.farmerName || '—'}</Text>
-                  {activeDelivery.farmerPhone ? (
-                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${activeDelivery.farmerPhone}`)}>
-                      <Icon name="call" size={14} color={Colors.white} />
-                    </TouchableOpacity>
-                  ) : null}
+              <View style={styles.activeCardBody}>
+                <View style={styles.routeTimeline}>
+                  <Icon name="radio-button-on" size={16} color={Colors.primary} />
+                  <View style={styles.routeLine} />
+                  <Icon name="location" size={16} color={Colors.error} />
                 </View>
-                <View style={styles.activeRow}>
-                  <Icon name="location-outline" size={13} color="rgba(255,255,255,0.8)" />
-                  <Text style={styles.activeRowText} numberOfLines={1}>Pickup: {activeDelivery.pickupAddress || '—'}</Text>
-                </View>
-                <View style={styles.activeRow}>
-                  <Icon name="person-outline" size={13} color="rgba(255,255,255,0.8)" />
-                  <Text style={styles.activeRowText}>Buyer: {activeDelivery.buyerName || '—'}</Text>
-                  {activeDelivery.buyerPhone ? (
-                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${activeDelivery.buyerPhone}`)}>
-                      <Icon name="call" size={14} color={Colors.white} />
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-                <View style={styles.activeRow}>
-                  <Icon name="home-outline" size={13} color="rgba(255,255,255,0.8)" />
-                  <Text style={styles.activeRowText} numberOfLines={1}>Drop: {formatAddr(activeDelivery.dropAddress)}</Text>
+                <View style={styles.routeTextCol}>
+                  <View style={styles.routeTextItem}>
+                    <Text style={styles.routeLabel}>PICKUP</Text>
+                    <Text style={styles.routeAddress} numberOfLines={1}>{activeDelivery.pickupAddress || 'Farm'}</Text>
+                  </View>
+                  <View style={styles.routeTextItem}>
+                    <Text style={styles.routeLabel}>DROPOFF</Text>
+                    <Text style={styles.routeAddress} numberOfLines={1}>{formatAddr(activeDelivery.dropAddress)}</Text>
+                  </View>
                 </View>
               </View>
 
-              {/* Status action + Navigate */}
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                {/* Navigate button — always visible */}
+              <View style={styles.activeCardActions}>
                 <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: 'rgba(255,255,255,0.25)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)' }]}
+                  style={[styles.actionBtnSolid, { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border }]}
                   onPress={() => navigation.navigate('DeliveryNavigation', {
                     orderId: activeDelivery.id || (activeDelivery as any).orderId,
                     pickupLat: activeDelivery.pickupLat ?? 0,
@@ -318,97 +280,86 @@ export const DeliveryHomeScreen: React.FC = () => {
                     dropLng: activeDelivery.dropLng ?? 0,
                   })}
                 >
-                  <Text style={styles.actionBtnText}>🗺️ Navigate</Text>
+                  <Icon name="navigate-outline" size={18} color={Colors.primary} />
+                  <Text style={[styles.actionBtnTextSolid, { color: Colors.primary }]}>Navigate</Text>
                 </TouchableOpacity>
 
                 {activeDelivery.status === 'assigned' && (
                   <TouchableOpacity
-                    style={styles.actionBtn}
+                    style={[styles.actionBtnSolid, { flex: 1.5, backgroundColor: Colors.primary }]}
                     onPress={() => updateStatus(activeDelivery.id || (activeDelivery as any).orderId, 'PICKED_UP', 'Picked Up')}
                     disabled={updatingId === activeDelivery.id}
                   >
-                    {updatingId === activeDelivery.id ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.actionBtnText}>📦 Picked Up</Text>}
+                    {updatingId === activeDelivery.id ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.actionBtnTextSolid}>Mark Picked Up</Text>}
                   </TouchableOpacity>
                 )}
                 {(activeDelivery.status === 'picked_up' || activeDelivery.status === 'in_transit') && (
                   <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: Colors.success }]}
+                    style={[styles.actionBtnSolid, { flex: 1.5, backgroundColor: Colors.success }]}
                     onPress={() => updateStatus(activeDelivery.id || (activeDelivery as any).orderId, 'DELIVERED', 'Delivered')}
                     disabled={updatingId === activeDelivery.id}
                   >
-                    {updatingId === activeDelivery.id ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.actionBtnText}>✅ Delivered</Text>}
+                    {updatingId === activeDelivery.id ? <ActivityIndicator color={Colors.white} size="small" /> : <Text style={styles.actionBtnTextSolid}>Mark Delivered</Text>}
                   </TouchableOpacity>
                 )}
               </View>
-            </LinearGradient>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
         )}
 
-        {/* Available orders pool */}
         <Text style={styles.sectionTitle}>
           Available Orders ({available.length})
         </Text>
-        {loading ? (
-          <ActivityIndicator color={Colors.primary} style={{ marginVertical: 20 }} />
+        
+        {!isOnline ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyIcon}>😴</Text>
+            <Text style={styles.emptyText}>You are currently offline</Text>
+            <Text style={styles.emptySub}>Go online to start receiving new delivery requests.</Text>
+          </View>
+        ) : loading ? (
+          <ActivityIndicator color={Colors.primary} style={{ marginVertical: 40 }} size="large" />
         ) : available.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>📭</Text>
-            <Text style={styles.emptyText}>No available orders right now</Text>
-            <Text style={styles.emptySub}>Pull to refresh</Text>
+            <Text style={styles.emptyIcon}>📡</Text>
+            <Text style={styles.emptyText}>Looking for orders...</Text>
+            <Text style={styles.emptySub}>Stay online, new requests will appear here automatically.</Text>
           </View>
         ) : (
           available.map(order => (
-            <View key={order.id || (order as any).orderId} style={styles.orderCard}>
-              {/* Header */}
-              <View style={styles.cardHeader}>
-                <Text style={styles.orderNum}>#{String(order.id || (order as any).orderId || '').slice(0, 8).toUpperCase()}</Text>
-                <View style={styles.earnBadge}>
-                  <Text style={styles.earnBadgeText}>Earn ₹{(order.deliveryFee ?? 0).toFixed(0)}</Text>
+            <View key={order.id || (order as any).orderId} style={styles.availableCard}>
+              <View style={styles.availHeader}>
+                <View>
+                  <Text style={styles.availEarning}>₹{(order.deliveryFee ?? 0).toFixed(0)}</Text>
+                  <Text style={styles.availDistance}>{order.distance ? `${order.distance.toFixed(1)} km total` : 'Distance unknown'}</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.claimBtnSolid, claimingId === (order.id || (order as any).orderId) && { opacity: 0.6 }]}
+                  onPress={() => claimOrder(order.id || (order as any).orderId)}
+                  disabled={claimingId === (order.id || (order as any).orderId)}
+                >
+                  {claimingId === (order.id || (order as any).orderId) ? (
+                    <ActivityIndicator color={Colors.white} size="small" />
+                  ) : (
+                    <Text style={styles.claimBtnTextSolid}>Accept Order</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.availBody}>
+                <View style={styles.availLocation}>
+                  <Icon name="storefront" size={16} color={Colors.primary} />
+                  <Text style={styles.availAddrText} numberOfLines={1}>{order.pickupAddress || 'Farm Pickup'}</Text>
+                </View>
+                <View style={styles.availLocationDivider} />
+                <View style={styles.availLocation}>
+                  <Icon name="home" size={16} color={Colors.error} />
+                  <Text style={styles.availAddrText} numberOfLines={1}>{formatAddr(order.dropAddress) || 'Customer Dropoff'}</Text>
                 </View>
               </View>
-
-              {/* Meta */}
-              <View style={styles.metaRow}>
-                {(order as any).itemCount ? <Text style={styles.metaChip}>{(order as any).itemCount} items</Text> : null}
-                {order.distance ? <Text style={styles.metaChip}>{order.distance.toFixed(1)} km</Text> : null}
-                <Text style={styles.metaChip}>₹{((order as any).totalAmount ?? 0).toFixed(0)} order</Text>
-              </View>
-
-              {/* Farmer contact */}
-              <ContactCard
-                icon="leaf-outline"
-                color={Colors.warning}
-                label="📦 Pickup — Farmer"
-                name={order.farmerName}
-                phone={order.farmerPhone}
-                address={order.pickupAddress}
-              />
-
-              {/* Buyer contact */}
-              <ContactCard
-                icon="home-outline"
-                color={Colors.primary}
-                label="🏠 Drop — Buyer"
-                name={order.buyerName}
-                phone={order.buyerPhone}
-                address={formatAddr(order.dropAddress)}
-              />
-
-              {/* Claim */}
-              <TouchableOpacity
-                style={[styles.claimBtn, claimingId === (order.id || (order as any).orderId) && { opacity: 0.6 }]}
-                onPress={() => claimOrder(order.id || (order as any).orderId)}
-                disabled={claimingId === (order.id || (order as any).orderId)}
-                activeOpacity={0.85}
-              >
-                {claimingId === (order.id || (order as any).orderId)
-                  ? <ActivityIndicator color={Colors.white} size="small" />
-                  : <Text style={styles.claimBtnText}>Claim Order</Text>}
-              </TouchableOpacity>
             </View>
           ))
         )}
-        <View style={{ height: 32 }} />
       </ScrollView>
     </View>
   );
@@ -418,46 +369,61 @@ export default DeliveryHomeScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingTop: 50, paddingBottom: 16, paddingHorizontal: 16 },
-  headerTitle: { color: Colors.white, fontSize: 22, fontWeight: '800' },
-  headerSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 2 },
-  mapPlaceholder: { height: 160, backgroundColor: '#C8E6C9', alignItems: 'center', justifyContent: 'center' },
-  mapOffline: { backgroundColor: Colors.divider },
-  mapPulse: { width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.primary, ...shadow.md },
-  mapOnlineText: { fontSize: 12, color: Colors.primary, marginTop: 12, opacity: 0.8 },
-  offlineIcon: { fontSize: 40 },
-  offlineText: { fontSize: 17, fontWeight: '700', color: Colors.textHint, marginTop: 6 },
-  offlineSub: { fontSize: 13, color: Colors.textHint, marginTop: 2 },
-  toggleWrap: { alignItems: 'center', marginTop: -22, zIndex: 10 },
-  togglePill: { borderRadius: borderRadius.full, paddingHorizontal: 40, paddingVertical: 14, ...shadow.lg },
-  toggleText: { color: Colors.white, fontWeight: '800', fontSize: 16 },
-  scroll: { flex: 1, padding: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12, marginTop: 20 },
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
-  statCard: { flex: 1, backgroundColor: Colors.white, borderRadius: borderRadius.lg, padding: 12, alignItems: 'center', ...shadow.sm },
-  statIcon: { fontSize: 22, marginBottom: 4 },
-  statValue: { fontSize: 15, fontWeight: '800', color: Colors.primary },
-  statLabel: { fontSize: 10, color: Colors.textHint, marginTop: 2, textAlign: 'center' },
-  activeCard: { borderRadius: borderRadius.xl, overflow: 'hidden', ...shadow.md, marginBottom: 8 },
-  activeGradient: { padding: 16 },
-  activeTitle: { color: Colors.white, fontSize: 13, fontWeight: '600', opacity: 0.9 },
-  activeId: { color: Colors.white, fontSize: 20, fontWeight: '800', marginTop: 2 },
-  activeStatus: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 },
-  activeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  activeRowText: { flex: 1, color: 'rgba(255,255,255,0.9)', fontSize: 12 },
-  actionBtn: { flex: 1, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: borderRadius.md, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
-  actionBtnText: { color: Colors.white, fontWeight: '700', fontSize: 13 },
-  emptyCard: { backgroundColor: Colors.white, borderRadius: borderRadius.lg, padding: 32, alignItems: 'center', ...shadow.sm },
-  emptyIcon: { fontSize: 40, marginBottom: 8 },
-  emptyText: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
-  emptySub: { fontSize: 12, color: Colors.textHint, marginTop: 4 },
-  orderCard: { backgroundColor: Colors.white, borderRadius: borderRadius.xl, padding: 14, marginBottom: 14, ...shadow.md },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  orderNum: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
-  earnBadge: { backgroundColor: Colors.successLight, borderRadius: borderRadius.full, paddingHorizontal: 10, paddingVertical: 4 },
-  earnBadgeText: { color: Colors.success, fontSize: 12, fontWeight: '700' },
-  metaRow: { flexDirection: 'row', gap: 6, marginBottom: 10, flexWrap: 'wrap' },
-  metaChip: { backgroundColor: Colors.background, borderRadius: borderRadius.full, paddingHorizontal: 10, paddingVertical: 3, fontSize: 11, color: Colors.textSecondary, fontWeight: '600' },
-  claimBtn: { backgroundColor: Colors.primary, borderRadius: borderRadius.lg, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
-  claimBtnText: { color: Colors.white, fontWeight: '700', fontSize: 15 },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.white, paddingTop: 50, paddingBottom: 16, paddingHorizontal: 20, ...shadow.sm },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary },
+  headerSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 2, fontWeight: '500' },
+  inlineToggle: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, gap: 6 },
+  toggleDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.white },
+  toggleTextInline: { color: Colors.white, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
+  scroll: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
+  
+  dashboardWidget: { borderRadius: 24, padding: 24, marginBottom: 28, ...shadow.md },
+  dashHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  dashTitle: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  dashDetailsBtn: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  dashDetailsText: { color: Colors.white, fontSize: 11, fontWeight: '700' },
+  dashAmount: { color: Colors.white, fontSize: 44, fontWeight: '800', marginBottom: 24 },
+  dashBottomRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: 16, padding: 16 },
+  dashStatBox: { flex: 1, alignItems: 'center' },
+  dashStatLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600', marginBottom: 4 },
+  dashStatValue: { color: Colors.white, fontSize: 18, fontWeight: '800' },
+  dashDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.2)' },
+  
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, marginLeft: 4 },
+  
+  activeCard: { backgroundColor: Colors.white, borderRadius: 20, ...shadow.md, overflow: 'hidden' },
+  activeCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  pulseDotWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primaryLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primaryDark },
+  activeStatusText: { color: Colors.primaryDark, fontSize: 12, fontWeight: '800' },
+  activeOrderId: { fontSize: 13, fontWeight: '700', color: Colors.textHint },
+  
+  activeCardBody: { flexDirection: 'row', padding: 16 },
+  routeTimeline: { width: 24, alignItems: 'center', marginRight: 12 },
+  routeLine: { width: 2, flex: 1, backgroundColor: Colors.border, marginVertical: 4 },
+  routeTextCol: { flex: 1, justifyContent: 'space-between' },
+  routeTextItem: { marginBottom: 12 },
+  routeLabel: { fontSize: 10, color: Colors.textHint, fontWeight: '700', letterSpacing: 0.5, marginBottom: 2 },
+  routeAddress: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
+  
+  activeCardActions: { flexDirection: 'row', padding: 16, paddingTop: 0, gap: 10 },
+  actionBtnSolid: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 16, gap: 6 },
+  actionBtnTextSolid: { color: Colors.white, fontSize: 14, fontWeight: '700' },
+  
+  availableCard: { backgroundColor: Colors.white, borderRadius: 20, padding: 16, marginBottom: 16, ...shadow.sm },
+  availHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  availEarning: { fontSize: 24, fontWeight: '800', color: Colors.textPrimary },
+  availDistance: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600', marginTop: 2 },
+  claimBtnSolid: { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 100 },
+  claimBtnTextSolid: { color: Colors.white, fontSize: 14, fontWeight: '700' },
+  
+  availBody: { backgroundColor: Colors.background, borderRadius: 16, padding: 16 },
+  availLocation: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  availLocationDivider: { width: 1.5, height: 16, backgroundColor: Colors.border, marginLeft: 7, marginVertical: 4 },
+  availAddrText: { flex: 1, fontSize: 13, color: Colors.textPrimary, fontWeight: '500' },
+  
+  emptyCard: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40, backgroundColor: Colors.white, borderRadius: 24, ...shadow.sm },
+  emptyIcon: { fontSize: 48, marginBottom: 16 },
+  emptyText: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+  emptySub: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', paddingHorizontal: 30 },
 });

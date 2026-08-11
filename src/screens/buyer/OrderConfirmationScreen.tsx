@@ -42,6 +42,7 @@ export const OrderConfirmationScreen: React.FC = () => {
 
   const [address, setAddress] = useState<Address | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
+  const [requiredVehicleType, setRequiredVehicleType] = useState<string>('Any');
   const [placing, setPlacing] = useState(false);
   const tabIndicator = useRef(new Animated.Value(0)).current;
 
@@ -119,6 +120,7 @@ export const OrderConfirmationScreen: React.FC = () => {
         addressId,
         paymentMethod,
         deliveryFee,
+        requiredVehicleType: requiredVehicleType === 'Any' ? undefined : requiredVehicleType.toUpperCase(),
       } as any);
       const order = res.data;
       navigation.navigate('PaymentSuccess', {
@@ -196,6 +198,24 @@ export const OrderConfirmationScreen: React.FC = () => {
           {paymentMethod === 'CARD' && (
             <Text style={styles.upiNote}>⚠ Card payments require Razorpay integration</Text>
           )}
+        </View>
+
+        {/* Vehicle Selection */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>🚚 Delivery Vehicle (Optional)</Text>
+          <View style={styles.vehicleOptions}>
+            {['Any', 'Bike', 'Auto', 'Mini Truck'].map((v) => (
+              <TouchableOpacity
+                key={v}
+                onPress={() => setRequiredVehicleType(v)}
+                style={[styles.vehicleOptionBtn, requiredVehicleType === v && styles.vehicleOptionBtnActive]}
+              >
+                <Text style={[styles.vehicleOptionText, requiredVehicleType === v && styles.vehicleOptionTextActive]}>
+                  {v}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {/* Bill Details */}
@@ -286,4 +306,9 @@ const styles = StyleSheet.create({
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, paddingBottom: 32, backgroundColor: Colors.white, ...shadow.lg },
   payBtn: { backgroundColor: Colors.primary, borderRadius: borderRadius.lg, paddingVertical: 15, alignItems: 'center' },
   payBtnText: { color: Colors.white, fontWeight: '700', fontSize: 16 },
+  vehicleOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  vehicleOptionBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: borderRadius.md, borderWidth: 1, borderColor: Colors.border },
+  vehicleOptionBtnActive: { borderColor: Colors.primary, backgroundColor: '#E8F5E9' },
+  vehicleOptionText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
+  vehicleOptionTextActive: { color: Colors.primary, fontWeight: '700' },
 });

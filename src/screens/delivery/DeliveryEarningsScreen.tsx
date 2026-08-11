@@ -53,23 +53,16 @@ export const DeliveryEarningsScreen: React.FC = () => {
       const res: any = await deliveryApi.getEarnings();
       const data: any = res?.data ?? res;
       const historyList = Array.isArray(data?.byDate) ? data.byDate :
-
                          Array.isArray(data?.by_date) ? data.by_date :
-                         Array.isArray(data?.entries) ? data.entries : [
-                           { orderId: 'ORD-98214', date: new Date().toISOString().split('T')[0], amount: 55, status: 'paid' },
-                           { orderId: 'ORD-87123', date: new Date(Date.now() - 86400000).toISOString().split('T')[0], amount: 48, status: 'paid' },
-                           { orderId: 'ORD-76110', date: new Date(Date.now() - 172800000).toISOString().split('T')[0], amount: 62, status: 'paid' },
-                           { orderId: 'ORD-65009', date: new Date(Date.now() - 259200000).toISOString().split('T')[0], amount: 50, status: 'paid' },
-                           { orderId: 'ORD-54988', date: new Date(Date.now() - 345600000).toISOString().split('T')[0], amount: 45, status: 'paid' },
-                         ];
+                         Array.isArray(data?.entries) ? data.entries : [];
 
       setEarnings({
-        total:     (data?.total || data?.totalEarnings) ? (data.total || data.totalEarnings) : 260,
-        pending:   data?.pending   ?? 45,
-        paid:      data?.paid      ?? 215,
-        today:     (data?.today || data?.todayEarnings) ? (data.today || data.todayEarnings) : 55,
-        thisWeek:  (data?.thisWeek || data?.weekEarnings) ? (data.thisWeek || data.weekEarnings) : 260,
-        thisMonth: (data?.thisMonth || data?.monthEarnings) ? (data.thisMonth || data.monthEarnings) : 1240,
+        total:     (data?.total || data?.totalEarnings) || 0,
+        pending:   data?.pending   || 0,
+        paid:      data?.paid      || 0,
+        today:     (data?.today || data?.todayEarnings) || 0,
+        thisWeek:  (data?.thisWeek || data?.weekEarnings) || 0,
+        thisMonth: (data?.thisMonth || data?.monthEarnings) || 0,
         byDate:    historyList,
       });
 

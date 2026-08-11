@@ -94,9 +94,25 @@ const cartSlice = createSlice({
      */
     addItem(
       state,
-      action: PayloadAction<{ product: Product; quantity?: number }>,
+      action: PayloadAction<{ product: Product; quantity?: number; autoClear?: boolean }>,
     ) {
       const { product, quantity = 1 } = action.payload;
+      
+      const incomingFarmerId =
+        product.farmerId ||
+        (product.farmer as any)?._id ||
+        (product.farmer as any)?.id ||
+        '';
+
+      // Enforce single-farmer per cart
+      if (state.items.length > 0) {
+        const existingFarmerId = state.items[0].farmerId;
+        if (incomingFarmerId && existingFarmerId && incomingFarmerId !== existingFarmerId) {
+          // Clear cart so a "new cart" opens for the new farmer
+          state.items = [];
+        }
+      }
+
       const existing = state.items.find((i) => i.productId === product.id);
 
       if (existing) {

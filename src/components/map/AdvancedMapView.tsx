@@ -471,7 +471,7 @@ export const AdvancedMapView: React.FC<AdvancedMapViewProps> = ({
 
             {/* Vehicle Card Bubble */}
             <View style={styles.driverCalloutBubble}>
-              <Text style={styles.driverCalloutText}>{driverName.split(' ')[0]} • {speedKmH} km/h</Text>
+              <Text style={styles.driverCalloutText}>{driverName.split(' ')[0]}</Text>
             </View>
 
             {/* Delivery Partner 3D Badge */}
@@ -494,30 +494,7 @@ export const AdvancedMapView: React.FC<AdvancedMapViewProps> = ({
         </View>
       )}
 
-      {/* Swiggy/Zomato Top Turn-by-Turn Navigation HUD Card */}
-      {showHud && mode === 'navigation' && (
-        <View style={styles.hudCard}>
-          <View style={[styles.hudArrowBox, { backgroundColor: primaryRouteColor }]}>
-            <Text style={styles.hudArrow}>{turnInstruction.arrow}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.hudInstruction}>{turnInstruction.instruction}</Text>
-            <Text style={styles.hudSub}>{turnInstruction.subText || 'In 180 meters'}</Text>
-          </View>
-          <View style={styles.speedBadge}>
-            <Text style={styles.speedValue}>{speedKmH}</Text>
-            <Text style={styles.speedUnit}>KM/H</Text>
-          </View>
-        </View>
-      )}
 
-      {/* Swiggy/Zomato Floating Live Tracking Chip */}
-      {showHud && mode === 'tracking' && (
-        <View style={styles.etaChip}>
-          <View style={styles.livePulseDot} />
-          <Text style={styles.etaChipText}>⚡ LIVE TRACKING • ETA {etaMinutes} MINS ({distanceKm} km)</Text>
-        </View>
-      )}
 
       {/* Swiggy/Zomato Style Floating Controls */}
       {showControls && (
