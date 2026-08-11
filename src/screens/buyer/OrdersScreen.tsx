@@ -164,16 +164,19 @@ export const OrdersScreen: React.FC = () => {
     return CANCELLED_STATUSES.includes(o.status);
   });
 
-  const renderOrder = ({ item }: { item: Order }) => (
-    <OrderCard
-      order={item}
-      tab={activeTab}
-      onTrack={() => navigation.navigate('OrderTracking', { orderId: item.id })}
-      onRate={() => navigation.navigate('RateReview', { orderId: item.id })}
-      onReorder={() => {}}
-      onView={() => navigation.navigate('OrderDetail', { orderId: item.id })}
-    />
-  );
+  const renderOrder = ({ item }: { item: Order }) => {
+    const targetId = item.id || (item as any)._id || (item as any).orderId;
+    return (
+      <OrderCard
+        order={item}
+        tab={activeTab}
+        onTrack={() => navigation.navigate('OrderTracking', { orderId: targetId, initialOrder: item })}
+        onRate={() => navigation.navigate('RateReview', { orderId: targetId })}
+        onReorder={() => {}}
+        onView={() => navigation.navigate('OrderDetail', { orderId: targetId, initialOrder: item })}
+      />
+    );
+  };
 
   return (
     <View style={styles.container}>

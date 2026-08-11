@@ -122,7 +122,15 @@ export default function DeliveriesScreen() {
           keyExtractor={o => o.id}
           estimatedItemSize={130}
           renderItem={({item}) => (
-            <DeliveryCard order={item} onPress={() => navigation.navigate('DeliveryOrderDetail',{orderId: item.id})}/>
+            <DeliveryCard
+              order={item}
+              onPress={() =>
+                navigation.navigate('DeliveryOrderDetail', {
+                  orderId: item.id || (item as any)._id || item.orderId,
+                  initialOrder: item,
+                })
+              }
+            />
           )}
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}

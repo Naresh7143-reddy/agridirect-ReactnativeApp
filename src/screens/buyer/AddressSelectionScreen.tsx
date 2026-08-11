@@ -33,6 +33,8 @@ import { shadow, borderRadius } from '../../theme/spacing';
 import { buyerApi } from '../../api/buyer';
 import type { Address, AddAddressRequest } from '../../types/buyer';
 import type { BuyerStackParamList } from '../../navigation/types';
+import AdvancedMapView from '../../components/map/AdvancedMapView';
+import { getAccurateOrNetworkPosition } from '../../hooks/useLocation';
 
 // ─── Reverse geocode helper (free OpenStreetMap) ──────────────────────────────
 
@@ -131,44 +133,36 @@ export const AddressSelectionScreen: React.FC = () => {
       return;
     }
     setGpsBusy(true);
-    Geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords;
-          const geo = await reverseGeocode(latitude, longitude);
-          setForm((f) => ({
-            ...f,
-            line1: geo.line1 || f.line1,
-            city: geo.city || f.city,
-            state: geo.state || f.state,
-            pincode: geo.pincode || f.pincode,
-            lat: latitude,
-            lng: longitude,
-          }));
-          setModalOpen(true);
-        } catch (e: any) {
-          Alert.alert('Could not get address', e?.message ?? 'Try entering manually.');
-          setModalOpen(true);
-        } finally { setGpsBusy(false); }
-      },
-      (err) => {
-        setGpsBusy(false);
-        const msg = err?.message || '';
-        let friendly = 'Could not get your location. ';
-        if (msg.toLowerCase().includes('no location provider') || msg.toLowerCase().includes('disabled')) {
-          friendly += 'Please turn ON Location (GPS) in your phone settings, then try again.';
-        } else if (msg.toLowerCase().includes('timeout')) {
-          friendly += 'GPS timed out. Step outside or near a window and try again.';
-        } else {
-          friendly += msg;
-        }
-        Alert.alert('Location unavailable', friendly + '\n\nYou can also tap "Type address manually" below.', [
-          { text: 'OK', onPress: () => setModalOpen(true) },
-        ]);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
-    );
-  }, []);
+    try {
+      const pos = await getAccurateOrNetworkPosition();
+      const { latitude, longitude } = pos.coords;
+      const geo = await reverseGeocode(latitude, longitude);
+      setForm((f) => ({
+        ...f,
+        line1: geo.line1 || f.line1,
+        city: geo.city || f.city,
+        state: geo.state || f.state,
+        pincode: geo.pincode || f.pincode,
+        lat: latitude,
+        lng: longitude,
+      }));
+      setModalOpen(true);
+    } catch (err: any) {
+      const msg = err?.message || '';
+      let friendly = 'Could not get your location. ';
+      if (msg.toLowerCase().includes('no location provider') || msg.toLowerCase().includes('disabled')) {
+        friendly += 'Please turn ON Location (GPS) in your phone settings, then try again.';
+      } else {
+        friendly += msg;
+      }
+      Alert.alert('Location unavailable', friendly + '\n\nYou can also tap "Type address manually" below.', [
+        { text: 'Type manually', onPress: () => setModalOpen(true) },
+        { text: 'OK', style: 'cancel' },
+      ]);
+    } finally {
+      setGpsBusy(false);
+    }
+  }, [requestLocationPermission]);
 
   // ── Save new address ───────────────────────────────────────────────────────
 
@@ -314,6 +308,28 @@ export const AddressSelectionScreen: React.FC = () => {
             </View>
 
             <ScrollView contentContainerStyle={{ paddingBottom: 16 }} keyboardShouldPersistTaps="handled">
+              {/* Interactive Map Pin Picker */}
+              <View style={{ height: 160, borderRadius: borderRadius.lg, overflow: 'hidden', marginBottom: 14 }}>
+                <AdvancedMapView
+                  mode="picker"
+                  style={StyleSheet.absoluteFill}
+                  theme="green"
+                  onLocationSelect={(loc) => {
+                    reverseGeocode(loc.latitude, loc.longitude).then((geo) => {
+                      if (geo) {
+                        setForm((f) => ({
+                          ...f,
+                          line1: geo.line1 || f.line1,
+                          city: geo.city || f.city,
+                          state: geo.state || f.state,
+                          pincode: geo.pincode || f.pincode,
+                        }));
+                      }
+                    });
+                  }}
+                />
+              </View>
+
               {/* Label pills */}
               <Text style={styles.fieldLabel}>Label</Text>
               <View style={styles.pillRow}>

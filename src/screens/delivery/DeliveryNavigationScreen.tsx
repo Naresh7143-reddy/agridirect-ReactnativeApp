@@ -19,6 +19,7 @@ import { Colors } from '../../theme/colors';
 import { borderRadius, shadow } from '../../theme/spacing';
 import { deliveryApi } from '../../api/delivery';
 import { calculateDynamicEta } from '../../utils/deliveryCalc';
+import AdvancedMapView from '../../components/map/AdvancedMapView';
 
 type DeliveryStackParamList = {
 
@@ -95,7 +96,16 @@ export const DeliveryNavigationScreen: React.FC = () => {
         setPhaseIndex((prev) => prev + 1);
       }
     } catch (e: any) {
-      Alert.alert('Update Failed', e?.message || 'Please try again.');
+      const msg = e?.message || e?.response?.data?.message || 'Please try again.';
+      if (msg.includes('PACKED') || msg.includes('packed')) {
+        Alert.alert(
+          'Waiting for Farmer',
+          'Farmer has not marked this order as PACKED yet. Please ask the farmer to tap "Mark as Packed" on their AgriDirect app before pickup.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Update Failed', msg);
+      }
     } finally {
       setUpdating(false);
     }
@@ -132,18 +142,35 @@ export const DeliveryNavigationScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Map Placeholder */}
-      <View style={styles.mapPlaceholder}>
-        {/* Turn instruction overlay */}
-        <View style={styles.turnCard}>
-          <Text style={styles.turnArrow}>↰</Text>
-          <View>
-            <Text style={styles.turnInstruction}>Turn left in 200m</Text>
-            <Text style={styles.turnStreet}>Farm Road, Sector 4</Text>
-          </View>
-        </View>
-        <Text style={styles.mapIcon}>🗺️</Text>
-        <View style={styles.routeLine} />
+      {/* Advanced Map Engine */}
+      <View style={styles.mapContainer}>
+        <AdvancedMapView
+          mode="navigation"
+          style={StyleSheet.absoluteFill}
+          pickupLocation={{
+            latitude: route.params.pickupLat || 13.0827,
+            longitude: route.params.pickupLng || 80.2707,
+            title: 'Farm Pickup',
+          }}
+          dropoffLocation={{
+            latitude: route.params.dropLat || 13.075,
+            longitude: route.params.dropLng || 80.28,
+            title: 'Buyer Dropoff',
+          }}
+          driverLocation={{
+            latitude: phaseIndex <= 1 ? (route.params.pickupLat || 13.082) : (route.params.dropLat || 13.078),
+            longitude: phaseIndex <= 1 ? (route.params.pickupLng || 80.27) : (route.params.dropLng || 80.279),
+          }}
+          vehicleType="BIKE"
+          speedKmH={phaseIndex % 2 === 0 ? 32 : 24}
+          turnInstruction={{
+            arrow: phaseIndex <= 1 ? '↰' : '↱',
+            instruction: phaseIndex <= 1 ? 'Turn left onto Farm Sector Road' : 'Turn right onto Buyer Avenue',
+            subText: 'In 180 meters',
+          }}
+          theme="swiggy"
+        />
+
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
@@ -269,6 +296,7 @@ export default DeliveryNavigationScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  mapContainer: { flex: 1, position: 'relative' },
   mapPlaceholder: { flex: 1, backgroundColor: '#C8E6C9', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   turnCard: { position: 'absolute', top: 60, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.white, borderRadius: borderRadius.lg, padding: 14, ...shadow.md },
   turnArrow: { fontSize: 32, color: Colors.primary },

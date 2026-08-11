@@ -35,12 +35,12 @@ import type { Category } from '../../types/category';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const BANNERS = [
-  { id: '1', title: 'Fresh from the Farm', subtitle: 'Order by 10 AM, delivered today', color1: Colors.primary, color2: Colors.primaryLight },
-  { id: '2', title: 'Organic Goodness', subtitle: 'Certified organic produce', color1: '#2E7D32', color2: '#43A047' },
-  { id: '3', title: 'Support Local Farmers', subtitle: 'Buy direct, save more', color1: '#1B5E20', color2: '#388E3C' },
+  { id: '1', title: 'Farm Fresh Harvest', subtitle: 'Directly from local growers to your doorstep', color1: Colors.primaryDark, color2: Colors.primaryLight, tag: '🌾 100% Direct' },
+  { id: '2', title: 'Certified Organic', subtitle: 'Pesticide-free & nutrient-packed veggies', color1: '#154A18', color2: '#2E7D32', tag: '✨ Certified' },
+  { id: '3', title: 'Express Delivery', subtitle: 'Ordered by 10 AM, delivered by evening', color1: '#E65100', color2: '#F57F17', tag: '⚡ Same Day' },
 ];
 
-// ── HomeProductCard sub-component (not in map) ───────────────────────────────
+// ── HomeProductCard sub-component ───────────────────────────────────────────────
 interface HomeProductCardProps {
   product: Product;
   onPress: () => void;
@@ -65,16 +65,19 @@ const HomeProductCard: React.FC<HomeProductCardProps> = ({ product, onPress }) =
   const imageUri = productImageUrl(product);
 
   return (
-    <TouchableOpacity style={styles.productCard} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={styles.productCard} onPress={onPress} activeOpacity={0.88}>
       <View style={styles.productImageWrap}>
         <FastImage
           source={{ uri: imageUri, priority: FastImage.priority.normal }}
           style={styles.productImage}
           resizeMode={FastImage.resizeMode.cover}
         />
+        <View style={styles.organicTag}>
+          <Text style={styles.organicTagText}>🌿 Fresh</Text>
+        </View>
         {product.stock < 10 && product.stock > 0 && (
           <View style={styles.stockBadge}>
-            <Text style={styles.stockBadgeText}>Only {product.stock} left</Text>
+            <Text style={styles.stockBadgeText}>{product.stock} left</Text>
           </View>
         )}
         {product.stock === 0 && (
@@ -85,11 +88,16 @@ const HomeProductCard: React.FC<HomeProductCardProps> = ({ product, onPress }) =
       </View>
       <View style={styles.productInfo}>
         <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
-        <Text style={styles.productFarmer} numberOfLines={1}>{product.farmerName}</Text>
+        <Text style={styles.productFarmer} numberOfLines={1}>👨‍🌾 {product.farmerName || 'Local Farm'}</Text>
         <View style={styles.productRow}>
-          <Text style={styles.productPrice}>₹{product.price}/{product.unit}</Text>
+          <View style={styles.priceWrap}>
+            <Text style={styles.productPrice}>₹{product.price}</Text>
+            <Text style={styles.productUnit}>/{product.unit}</Text>
+          </View>
           {(product.rating ?? 0) > 0 && (
-            <Text style={styles.productRating}>⭐ {(product.rating ?? 0).toFixed(1)}</Text>
+            <View style={styles.ratingBadge}>
+              <Text style={styles.productRating}>⭐ {(product.rating ?? 0).toFixed(1)}</Text>
+            </View>
           )}
         </View>
         {qty === 0 ? (
@@ -97,8 +105,9 @@ const HomeProductCard: React.FC<HomeProductCardProps> = ({ product, onPress }) =
             style={[styles.addBtn, product.stock === 0 && styles.addBtnDisabled]}
             onPress={handleAdd}
             disabled={product.stock === 0}
+            activeOpacity={0.8}
           >
-            <Text style={styles.addBtnText}>{product.stock === 0 ? 'Unavailable' : '+ Add'}</Text>
+            <Text style={styles.addBtnText}>{product.stock === 0 ? 'Out of Stock' : '+ ADD TO CART'}</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.stepper}>
@@ -127,9 +136,9 @@ const CategoryPill: React.FC<CategoryPillProps> = ({ category, isSelected, onPre
   <TouchableOpacity
     style={[styles.categoryPill, isSelected && styles.categoryPillActive]}
     onPress={onPress}
-    activeOpacity={0.8}
+    activeOpacity={0.85}
   >
-    <Text style={styles.categoryEmoji}>{(category as any).icon || '🌿'}</Text>
+    <Text style={styles.categoryEmoji}>{(category as any).icon || '🌾'}</Text>
     <Text style={[styles.categoryPillText, isSelected && styles.categoryPillTextActive]}>
       {category.name}
     </Text>
@@ -156,7 +165,7 @@ export const BuyerHomeScreen: React.FC = () => {
   useEffect(() => {
     if (cartCount !== prevCount.current) {
       Animated.sequence([
-        Animated.spring(cartBounce, { toValue: 1.4, useNativeDriver: true, speed: 50 }),
+        Animated.spring(cartBounce, { toValue: 1.3, useNativeDriver: true, speed: 50 }),
         Animated.spring(cartBounce, { toValue: 1, useNativeDriver: true, speed: 50 }),
       ]).start();
       prevCount.current = cartCount;
@@ -198,19 +207,22 @@ export const BuyerHomeScreen: React.FC = () => {
     setRefreshing(false);
   }, [loadData]);
 
-  const allCategory = { id: '', name: 'All', icon: '🌾' } as any;
+  const allCategory = { id: '', name: 'All Produce', icon: '🌾' } as any;
 
   const renderBanner = ({ item }: { item: typeof BANNERS[0] }) => (
     <LinearGradient
-      colors={[item.color1, item.color2, Colors.accent]}
+      colors={[item.color1, item.color2]}
       style={styles.banner}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
     >
+      <View style={styles.bannerBadge}>
+        <Text style={styles.bannerBadgeText}>{item.tag}</Text>
+      </View>
       <Text style={styles.bannerTitle}>{item.title}</Text>
       <Text style={styles.bannerSubtitle}>{item.subtitle}</Text>
       <TouchableOpacity style={styles.bannerBtn} onPress={() => navigation.navigate('BuyerTabs', { screen: 'SearchTab' } as any)}>
-        <Text style={styles.bannerBtnText}>Shop Now →</Text>
+        <Text style={styles.bannerBtnText}>Explore Fresh Produce →</Text>
       </TouchableOpacity>
     </LinearGradient>
   );
@@ -239,13 +251,14 @@ export const BuyerHomeScreen: React.FC = () => {
       }
     >
       {/* Header */}
-      <LinearGradient colors={Colors.gradientGreen} style={styles.header}>
+      <LinearGradient colors={Colors.gradientHero} style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity
             style={styles.locationPill}
             onPress={() => navigation.navigate('SavedAddresses')}
+            activeOpacity={0.8}
           >
-            <Text style={styles.locationText}>📍 Chennai, TN</Text>
+            <Text style={styles.locationText}>📍 Delivery: Chennai Central</Text>
             <Text style={styles.locationChevron}>▾</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('Cart')} style={styles.cartBtn}>
@@ -259,40 +272,66 @@ export const BuyerHomeScreen: React.FC = () => {
             </Animated.View>
           </TouchableOpacity>
         </View>
+
         <TouchableOpacity
           style={styles.searchBar}
           onPress={() => navigation.navigate('BuyerTabs', { screen: 'SearchTab' } as any)}
-          activeOpacity={0.85}
+          activeOpacity={0.88}
         >
           <Text style={styles.searchIcon}>🔍</Text>
-          <Text style={styles.searchPlaceholder}>Search vegetables, fruits...</Text>
+          <Text style={styles.searchPlaceholder}>Search organic tomatoes, spinach, apples...</Text>
         </TouchableOpacity>
+
+        {/* Trust Highlights */}
+        <View style={styles.trustBar}>
+          <View style={styles.trustItem}>
+            <Text style={styles.trustEmoji}>🌱</Text>
+            <Text style={styles.trustText}>100% Farm Fresh</Text>
+          </View>
+          <View style={styles.trustDivider} />
+          <View style={styles.trustItem}>
+            <Text style={styles.trustEmoji}>🏷️</Text>
+            <Text style={styles.trustText}>Direct Prices</Text>
+          </View>
+          <View style={styles.trustDivider} />
+          <View style={styles.trustItem}>
+            <Text style={styles.trustEmoji}>⚡</Text>
+            <Text style={styles.trustText}>Express Delivery</Text>
+          </View>
+        </View>
       </LinearGradient>
 
       {/* Hero Banner */}
-      <FlatList
-        ref={bannerRef}
-        data={BANNERS}
-        renderItem={renderBanner}
-        keyExtractor={(b) => b.id}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={(e) => {
-          const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-          setBannerIndex(idx);
-        }}
-        scrollEventThrottle={16}
-      />
-      <View style={styles.dotsRow}>
-        {BANNERS.map((_, i) => (
-          <View key={i} style={[styles.dot, i === bannerIndex && styles.dotActive]} />
-        ))}
+      <View style={styles.bannerContainer}>
+        <FlatList
+          ref={bannerRef}
+          data={BANNERS}
+          renderItem={renderBanner}
+          keyExtractor={(b) => b.id}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={(e) => {
+            const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+            setBannerIndex(idx);
+          }}
+          scrollEventThrottle={16}
+        />
+        <View style={styles.dotsRow}>
+          {BANNERS.map((_, i) => (
+            <View key={i} style={[styles.dot, i === bannerIndex && styles.dotActive]} />
+          ))}
+        </View>
       </View>
 
       {/* Categories */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Categories</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Categories</Text>
+          <TouchableOpacity onPress={() => setSelectedCategory(null)}>
+            <Text style={styles.seeAllText}>View All</Text>
+          </TouchableOpacity>
+        </View>
         {loadingCategories ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shimmerRow}>
             {[1, 2, 3, 4, 5].map((k) => (
@@ -313,13 +352,17 @@ export const BuyerHomeScreen: React.FC = () => {
 
       {/* Fresh Today */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🌿 Fresh Today</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>🌿 Fresh Harvest</Text>
+          <Text style={styles.sectionSubtitle}>Directly from local farms</Text>
+        </View>
         {loadingProducts ? (
-          <ActivityIndicator color={Colors.primary} style={{ marginTop: 20 }} />
+          <ActivityIndicator color={Colors.primary} style={{ marginTop: 24 }} size="large" />
         ) : products.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>🥬</Text>
-            <Text style={styles.emptyText}>No products available</Text>
+            <Text style={styles.emptyTitle}>No products found</Text>
+            <Text style={styles.emptyText}>Check back soon for fresh stock from local farms</Text>
           </View>
         ) : (
           <FlashList
@@ -327,7 +370,7 @@ export const BuyerHomeScreen: React.FC = () => {
             renderItem={renderProduct}
             keyExtractor={(p) => p.id}
             numColumns={2}
-            estimatedItemSize={240}
+            estimatedItemSize={270}
             scrollEnabled={false}
           />
         )}
@@ -340,55 +383,73 @@ export default BuyerHomeScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingTop: 50, paddingBottom: 16, paddingHorizontal: 16 },
+  header: { paddingTop: 48, paddingBottom: 16, paddingHorizontal: 16, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  locationPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: borderRadius.full, paddingHorizontal: 12, paddingVertical: 6 },
-  locationText: { color: Colors.white, fontSize: 14, fontWeight: '600' },
+  locationPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: borderRadius.full, paddingHorizontal: 14, paddingVertical: 7 },
+  locationText: { color: Colors.white, fontSize: 13, fontWeight: '700' },
   locationChevron: { color: Colors.white, marginLeft: 4, fontSize: 12 },
-  cartBtn: { position: 'relative', padding: 8 },
-  cartIcon: { fontSize: 24 },
-  cartBadge: { position: 'absolute', top: 2, right: 2, backgroundColor: Colors.secondary, borderRadius: borderRadius.full, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
-  cartBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '700' },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: borderRadius.lg, paddingHorizontal: 14, paddingVertical: 10, ...shadow.sm },
+  cartBtn: { position: 'relative', padding: 8, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: borderRadius.full, width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
+  cartIcon: { fontSize: 20 },
+  cartBadge: { position: 'absolute', top: -2, right: -2, backgroundColor: Colors.secondary, borderRadius: borderRadius.full, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: Colors.white },
+  cartBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '800' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: borderRadius.lg, paddingHorizontal: 14, paddingVertical: 12, ...shadow.sm, marginBottom: 12 },
   searchIcon: { fontSize: 16, marginRight: 8 },
-  searchPlaceholder: { color: Colors.textHint, fontSize: 14, flex: 1 },
-  banner: { width: SCREEN_WIDTH, height: 160, justifyContent: 'center', paddingHorizontal: 24 },
-  bannerTitle: { color: Colors.white, fontSize: 22, fontWeight: '800', marginBottom: 4 },
-  bannerSubtitle: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginBottom: 12 },
-  bannerBtn: { backgroundColor: Colors.white, borderRadius: borderRadius.full, paddingHorizontal: 16, paddingVertical: 8, alignSelf: 'flex-start' },
-  bannerBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 13 },
-  dotsRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 10, marginBottom: 4 },
+  searchPlaceholder: { color: Colors.textHint, fontSize: 13, flex: 1, fontWeight: '500' },
+  trustBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: borderRadius.md, paddingVertical: 8, paddingHorizontal: 6 },
+  trustItem: { flexDirection: 'row', alignItems: 'center' },
+  trustEmoji: { fontSize: 12, marginRight: 4 },
+  trustText: { color: Colors.white, fontSize: 11, fontWeight: '600' },
+  trustDivider: { width: 1, height: 12, backgroundColor: 'rgba(255,255,255,0.3)' },
+  bannerContainer: { marginTop: 14 },
+  banner: { width: SCREEN_WIDTH - 32, marginHorizontal: 16, height: 165, borderRadius: borderRadius.xl, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 16, overflow: 'hidden', ...shadow.md },
+  bannerBadge: { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: borderRadius.full, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: 6 },
+  bannerBadgeText: { color: Colors.white, fontSize: 11, fontWeight: '800' },
+  bannerTitle: { color: Colors.white, fontSize: 22, fontWeight: '800', marginBottom: 2 },
+  bannerSubtitle: { color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 12, fontWeight: '500' },
+  bannerBtn: { backgroundColor: Colors.white, borderRadius: borderRadius.full, paddingHorizontal: 16, paddingVertical: 8, alignSelf: 'flex-start', ...shadow.sm },
+  bannerBtnText: { color: Colors.primaryDark, fontWeight: '800', fontSize: 12 },
+  dotsRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 10 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.border, marginHorizontal: 3 },
-  dotActive: { width: 18, backgroundColor: Colors.primary },
+  dotActive: { width: 18, backgroundColor: Colors.primary, borderRadius: 4 },
   section: { marginTop: 20, paddingHorizontal: 16, paddingBottom: 8 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: Colors.textPrimary },
+  sectionSubtitle: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
+  seeAllText: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
   shimmerRow: { flexDirection: 'row', gap: 10 },
   shimmerPill: { width: 80, height: 36, borderRadius: borderRadius.full, backgroundColor: Colors.divider, marginRight: 8 },
   categoryRow: { paddingRight: 16 },
-  categoryPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: borderRadius.full, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: Colors.border, marginRight: 8, ...shadow.sm },
+  categoryPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: borderRadius.full, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: Colors.border, marginRight: 8, ...shadow.sm },
   categoryPillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  categoryEmoji: { fontSize: 16, marginRight: 6 },
-  categoryPillText: { color: Colors.textSecondary, fontSize: 13, fontWeight: '500' },
-  categoryPillTextActive: { color: Colors.white },
-  emptyState: { alignItems: 'center', paddingVertical: 40 },
-  emptyEmoji: { fontSize: 48 },
-  emptyText: { color: Colors.textHint, fontSize: 16, marginTop: 12 },
-  productCard: { flex: 1, margin: 6, backgroundColor: Colors.white, borderRadius: borderRadius.lg, overflow: 'hidden', ...shadow.sm },
+  categoryEmoji: { fontSize: 15, marginRight: 6 },
+  categoryPillText: { color: Colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  categoryPillTextActive: { color: Colors.white, fontWeight: '700' },
+  emptyState: { alignItems: 'center', paddingVertical: 40, backgroundColor: Colors.white, borderRadius: borderRadius.xl, marginHorizontal: 4, paddingHorizontal: 16, ...shadow.sm },
+  emptyEmoji: { fontSize: 44, marginBottom: 8 },
+  emptyTitle: { color: Colors.textPrimary, fontSize: 16, fontWeight: '700' },
+  emptyText: { color: Colors.textHint, fontSize: 13, marginTop: 4, textAlign: 'center' },
+  productCard: { flex: 1, margin: 6, backgroundColor: Colors.white, borderRadius: borderRadius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.borderLight, ...shadow.sm },
   productImageWrap: { position: 'relative' },
-  productImage: { width: '100%', height: 120 },
-  stockBadge: { position: 'absolute', top: 6, right: 6, backgroundColor: Colors.warning, borderRadius: borderRadius.xs, paddingHorizontal: 6, paddingVertical: 2 },
-  stockBadgeText: { color: Colors.white, fontSize: 9, fontWeight: '700' },
-  productInfo: { padding: 10 },
-  productName: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginBottom: 2 },
-  productFarmer: { fontSize: 11, color: Colors.textHint, marginBottom: 6 },
-  productRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  productPrice: { fontSize: 14, fontWeight: '700', color: Colors.primary },
-  productRating: { fontSize: 11, color: Colors.textSecondary },
-  addBtn: { backgroundColor: Colors.primary, borderRadius: borderRadius.sm, paddingVertical: 7, alignItems: 'center' },
+  productImage: { width: '100%', height: 130 },
+  organicTag: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(27, 94, 32, 0.88)', borderRadius: borderRadius.xs, paddingHorizontal: 6, paddingVertical: 2 },
+  organicTagText: { color: Colors.white, fontSize: 10, fontWeight: '700' },
+  stockBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: Colors.warning, borderRadius: borderRadius.xs, paddingHorizontal: 6, paddingVertical: 2 },
+  stockBadgeText: { color: Colors.white, fontSize: 9, fontWeight: '800' },
+  productInfo: { padding: 12 },
+  productName: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2, lineHeight: 17 },
+  productFarmer: { fontSize: 11, color: Colors.textSecondary, marginBottom: 8, fontWeight: '500' },
+  productRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  priceWrap: { flexDirection: 'row', alignItems: 'baseline' },
+  productPrice: { fontSize: 15, fontWeight: '800', color: Colors.primary },
+  productUnit: { fontSize: 11, color: Colors.textSecondary, marginLeft: 2 },
+  ratingBadge: { backgroundColor: '#FFF8E1', paddingHorizontal: 5, paddingVertical: 2, borderRadius: borderRadius.xs },
+  productRating: { fontSize: 11, color: Colors.secondaryDark, fontWeight: '700' },
+  addBtn: { backgroundColor: Colors.primary, borderRadius: borderRadius.md, paddingVertical: 8, alignItems: 'center', ...shadow.sm },
   addBtnDisabled: { backgroundColor: Colors.border },
-  addBtnText: { color: Colors.white, fontWeight: '700', fontSize: 13 },
-  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.successLight, borderRadius: borderRadius.sm, paddingHorizontal: 8, paddingVertical: 4 },
+  addBtnText: { color: Colors.white, fontWeight: '800', fontSize: 11, letterSpacing: 0.5 },
+  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.primaryMuted, borderRadius: borderRadius.md, paddingHorizontal: 6, paddingVertical: 4 },
   stepperBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary, borderRadius: borderRadius.xs },
-  stepperBtnText: { color: Colors.white, fontSize: 18, fontWeight: '700', lineHeight: 22 },
-  stepperQty: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+  stepperBtnText: { color: Colors.white, fontSize: 16, fontWeight: '800', lineHeight: 20 },
+  stepperQty: { fontSize: 14, fontWeight: '800', color: Colors.primary },
 });
+

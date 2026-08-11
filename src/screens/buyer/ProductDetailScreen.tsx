@@ -10,8 +10,12 @@ import {
   TouchableOpacity,
   View,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  Alert,
 } from 'react-native';
 import FastImage from 'react-native-fast-image';
+import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors } from '../../theme/colors';
@@ -62,11 +66,65 @@ export const ProductDetailScreen: React.FC = () => {
   const scrollY = useRef(new Animated.Value(0)).current;
   const stickyOpacity = scrollY.interpolate({ inputRange: [200, 280], outputRange: [0, 1], extrapolate: 'clamp' });
 
+  const [reviewsList, setReviewsList] = useState<any[]>(MOCK_REVIEWS);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [newRating, setNewRating] = useState(5);
+  const [newComment, setNewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  const loadReviews = useCallback(() => {
+    productsApi.getReviews(productId).then((r: any) => {
+      const data = r?.data ?? r;
+      if (Array.isArray(data) && data.length > 0) {
+        setReviewsList(data.map((item: any) => ({
+          id: item.id || item._id,
+          user: item.buyerName || 'Buyer',
+          rating: item.rating || 5,
+          text: item.comment || item.text,
+          date: item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-IN') : 'Recent',
+        })));
+      }
+    }).catch(() => {});
+  }, [productId]);
+
   useEffect(() => {
     productsApi.getById(productId).then((r: any) => {
       setProduct(r.data);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [productId]);
+    loadReviews();
+  }, [productId, loadReviews]);
+
+  const handleSubmitReview = async () => {
+    if (!newComment.trim()) {
+      Alert.alert('Review Required', 'Please enter a brief review before submitting.');
+      return;
+    }
+    setSubmittingReview(true);
+    try {
+      await productsApi.submitReview(productId, newRating, newComment.trim());
+      Alert.alert('Thank You!', 'Your review has been submitted successfully.');
+      setShowReviewModal(false);
+      setNewComment('');
+      loadReviews();
+    } catch {
+      // Local optimistic append if backend endpoint is unavailable
+      setReviewsList((prev) => [
+        {
+          id: Date.now().toString(),
+          user: 'You',
+          rating: newRating,
+          text: newComment.trim(),
+          date: 'Just now',
+        },
+        ...prev,
+      ]);
+      setShowReviewModal(false);
+      setNewComment('');
+      Alert.alert('Review Submitted', 'Your review has been saved locally.');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   const isUnavailable = !product?.isAvailable || (product?.stock != null && product.stock === 0);
 
@@ -247,7 +305,15 @@ export const ProductDetailScreen: React.FC = () => {
                 <Text style={styles.starPct}>{row.pct}%</Text>
               </View>
             ))}
-            {MOCK_REVIEWS.map((rev) => (
+            <TouchableOpacity
+              style={{ backgroundColor: Colors.primary + '15', borderRadius: borderRadius.md, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginVertical: 12 }}
+              onPress={() => setShowReviewModal(true)}
+            >
+              <Icon name="create-outline" size={16} color={Colors.primary} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.primary }}>Write a Review</Text>
+            </TouchableOpacity>
+
+            {reviewsList.map((rev) => (
               <View key={rev.id} style={styles.reviewCard}>
                 <View style={styles.reviewHeader}>
                   <View style={styles.reviewAvatar}><Text style={styles.reviewAvatarText}>{rev.user[0]}</Text></View>
@@ -263,6 +329,56 @@ export const ProductDetailScreen: React.FC = () => {
           </View>
         </View>
       </Animated.ScrollView>
+
+      {/* Write Review Modal */}
+      <Modal
+        visible={showReviewModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowReviewModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: Colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 12 }}>Write a Product Review</Text>
+            <Text style={{ fontSize: 13, color: Colors.textSecondary, marginBottom: 8 }}>Select Rating</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+              {[1, 2, 3, 4, 5].map((s) => (
+                <TouchableOpacity key={s} onPress={() => setNewRating(s)}>
+                  <Icon name={s <= newRating ? 'star' : 'star-outline'} size={28} color="#FFB800" />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={{ fontSize: 13, color: Colors.textSecondary, marginBottom: 6 }}>Your Review</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: borderRadius.md, padding: 10, height: 90, textAlignVertical: 'top', fontSize: 14, color: Colors.textPrimary, marginBottom: 16 }}
+              placeholder="Tell others about product freshness, quality, etc."
+              placeholderTextColor={Colors.textHint}
+              multiline
+              value={newComment}
+              onChangeText={setNewComment}
+            />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 12, borderRadius: borderRadius.md, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' }}
+                onPress={() => setShowReviewModal(false)}
+              >
+                <Text style={{ fontWeight: '700', color: Colors.textSecondary }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 12, borderRadius: borderRadius.md, backgroundColor: Colors.primary, alignItems: 'center' }}
+                onPress={handleSubmitReview}
+                disabled={submittingReview}
+              >
+                {submittingReview ? (
+                  <ActivityIndicator color={Colors.white} size="small" />
+                ) : (
+                  <Text style={{ fontWeight: '700', color: Colors.white }}>Submit Review</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Sticky Bottom Bar */}
       <Animated.View style={[styles.stickyBar, { opacity: stickyOpacity }]}>

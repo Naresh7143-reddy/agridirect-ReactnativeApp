@@ -1,56 +1,63 @@
 export const Colors = {
-  // Brand
+  // Brand - Rich Emerald & Organic Greens
   primary: '#1B5E20',
   primaryLight: '#2E7D32',
-  primaryDark: '#154A18',
-  secondary: '#F9A825',
+  primaryDark: '#0D3B10',
+  primaryMuted: '#E8F5E9',
+  secondary: '#F57F17',
   secondaryLight: '#FBC02D',
-  secondaryDark: '#F57F17',
+  secondaryDark: '#E65100',
   accent: '#00C853',
+  accentLight: '#B9F6CA',
 
   // Backgrounds
-  background: '#FAFAF7',
+  background: '#F6F8F5',
   surface: '#FFFFFF',
-  surfaceSecondary: '#F5F5F0',
+  surfaceSecondary: '#EFF3EA',
+  surfaceElevated: '#FFFFFF',
 
   // Semantic
   error: '#D32F2F',
   errorLight: '#FFEBEE',
-  warning: '#F57C00',
+  warning: '#EF6C00',
   warningLight: '#FFF3E0',
   success: '#2E7D32',
   successLight: '#E8F5E9',
-  info: '#1565C0',
-  infoLight: '#E3F2FD',
+  info: '#0277BD',
+  infoLight: '#E1F5FE',
 
   // Text
-  textPrimary: '#1A1A1A',
-  textSecondary: '#616161',
-  textHint: '#9E9E9E',
-  textDisabled: '#BDBDBD',
+  textPrimary: '#111827',
+  textSecondary: '#4B5563',
+  textHint: '#9CA3AF',
+  textDisabled: '#D1D5DB',
   textInverse: '#FFFFFF',
 
-  // UI
-  border: '#E0E0E0',
+  // UI & Borders
+  border: '#E5E7EB',
+  borderLight: '#F3F4F6',
   borderFocus: '#2E7D32',
-  divider: '#F5F5F5',
-  shadow: 'rgba(0,0,0,0.08)',
-  overlay: 'rgba(0,0,0,0.5)',
+  divider: '#F3F4F6',
+  shadow: 'rgba(17, 24, 39, 0.08)',
+  shadowDark: 'rgba(0, 0, 0, 0.16)',
+  overlay: 'rgba(15, 23, 42, 0.55)',
   white: '#FFFFFF',
   black: '#000000',
   transparent: 'transparent',
 
-  // Gradients (as tuples for LinearGradient)
-  gradientGreen: ['#1B5E20', '#2E7D32', '#43A047'] as [string, string, string],
-  gradientGold: ['#F57F17', '#F9A825', '#FBC02D'] as [string, string, string],
-  gradientSurface: ['#FFFFFF', '#FAFAF7'] as [string, string],
+  // Gradients (tuples for LinearGradient)
+  gradientGreen: ['#154A18', '#1B5E20', '#2E7D32'] as [string, string, string],
+  gradientGold: ['#E65100', '#F57F17', '#FBC02D'] as [string, string, string],
+  gradientSurface: ['#FFFFFF', '#F6F8F5'] as [string, string],
+  gradientHero: ['#0D3B10', '#1B5E20', '#388E3C'] as [string, string, string],
+  gradientAccent: ['#00C853', '#69F0AE'] as [string, string],
 
   // Order status
-  statusPending: '#FF8F00',
-  statusPendingBg: '#FFF8E1',
-  statusAccepted: '#1565C0',
-  statusAcceptedBg: '#E3F2FD',
-  statusPacked: '#6A1B9A',
+  statusPending: '#EF6C00',
+  statusPendingBg: '#FFF3E0',
+  statusAccepted: '#0277BD',
+  statusAcceptedBg: '#E1F5FE',
+  statusPacked: '#7B1FA2',
   statusPackedBg: '#F3E5F5',
   statusPickedUp: '#00838F',
   statusPickedUpBg: '#E0F7FA',
@@ -59,10 +66,10 @@ export const Colors = {
   statusCancelled: '#C62828',
   statusCancelledBg: '#FFEBEE',
 
-  // Neumorphic
+  // Neumorphic / Elevation
   neumorphicLight: '#FFFFFF',
-  neumorphicDark: 'rgba(0,0,0,0.10)',
-  neumorphicInsetBg: '#F0F0ED',
+  neumorphicDark: 'rgba(0, 0, 0, 0.06)',
+  neumorphicInsetBg: '#EEF2EC',
 } as const;
 
 export type ColorKey = keyof typeof Colors;
@@ -76,3 +83,4 @@ export const OrderStatusColors: Record<string, { color: string; bg: string }> = 
   DELIVERED: { color: Colors.statusDelivered, bg: Colors.statusDeliveredBg },
   CANCELLED: { color: Colors.statusCancelled, bg: Colors.statusCancelledBg },
 };
+

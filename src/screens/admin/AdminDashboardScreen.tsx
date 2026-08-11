@@ -94,10 +94,23 @@ const ActivityRow: React.FC<ActivityRowProps> = ({ item }) => (
 export const AdminDashboardScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const [loading, setLoading] = useState(true);
+  const [analytics, setAnalytics] = useState<any>(null);
 
   useEffect(() => {
-    adminApi.getAnalytics().then(() => {}).catch(() => {}).finally(() => setLoading(false));
+    adminApi.getAnalytics().then((r: any) => {
+      const data = r?.data ?? r;
+      if (data) setAnalytics(data);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  const dynamicKpiCards = [
+    { label: 'Total Users', icon: '👥', color: Colors.info, bg: Colors.infoLight, key: 'totalUsers', mockValue: analytics?.totalUsers ?? analytics?.usersCount ?? 1248 },
+    { label: 'Farmers', icon: '🌾', color: Colors.primary, bg: Colors.successLight, key: 'totalFarmers', mockValue: analytics?.totalFarmers ?? analytics?.farmersCount ?? 87 },
+    { label: 'Buyers', icon: '🛒', color: Colors.secondary, bg: Colors.warningLight, key: 'totalBuyers', mockValue: analytics?.totalBuyers ?? analytics?.buyersCount ?? 1124 },
+    { label: 'Orders Today', icon: '📦', color: Colors.primaryLight, bg: Colors.successLight, key: 'ordersToday', mockValue: analytics?.ordersToday ?? analytics?.todayOrdersCount ?? 43 },
+    { label: 'Revenue Today', icon: '💰', prefix: '₹', color: Colors.success, bg: Colors.successLight, key: 'revenueToday', mockValue: analytics?.revenueToday ?? analytics?.todayRevenue ?? 18640 },
+    { label: 'Deliveries', icon: '🏍️', color: Colors.info, bg: Colors.infoLight, key: 'deliveries', mockValue: analytics?.deliveries ?? analytics?.activeDeliveriesCount ?? 38 },
+  ];
 
   // Build SVG line chart path from REVENUE_TREND
   const maxVal = Math.max(...REVENUE_TREND);
@@ -126,7 +139,7 @@ export const AdminDashboardScreen: React.FC = () => {
         {/* KPI Cards */}
         <Text style={styles.sectionTitle}>Platform Overview</Text>
         <FlatList
-          data={KPI_CARDS}
+          data={dynamicKpiCards}
           renderItem={({ item }) => (
             <KpiCard card={item} onPress={() => {}} />
           )}

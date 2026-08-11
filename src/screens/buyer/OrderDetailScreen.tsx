@@ -13,6 +13,7 @@ import { ordersApi } from '../../api/orders';
 import { formatPrice } from '../../utils/format';
 import type { Order, OrderStatus } from '../../types/order';
 import type { BuyerStackParamList } from '../../navigation/types';
+import AdvancedMapView from '../../components/map/AdvancedMapView';
 
 type RouteP = RouteProp<BuyerStackParamList, 'OrderDetail'>;
 type NavP   = NativeStackNavigationProp<BuyerStackParamList>;
@@ -34,25 +35,27 @@ export default function OrderDetailScreen() {
   const route = useRoute<RouteP>();
   const navigation = useNavigation<NavP>();
   const { orderId } = route.params;
+  const initialData = (route.params as any)?.initialOrder ?? (route.params as any)?.order ?? null;
 
-  const [order, setOrder]     = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [order, setOrder]     = useState<Order | null>(initialData);
+  const [loading, setLoading] = useState(!initialData);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!order) setLoading(true);
     try {
       const res: any = await ordersApi.getOrderById(orderId);
-      // API client unwraps response.data, so res is { data: Order } or Order directly
-      const order = res?.data ?? res;
-      setOrder(order);
+      const fetched = res?.data ?? res;
+      if (fetched) setOrder(fetched);
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not load order details');
+      if (!order) {
+        Alert.alert('Error', e?.message || 'Could not load order details');
+      }
     } finally {
       setLoading(false);
     }
-  }, [orderId]);
+  }, [orderId, order]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [orderId]);
 
   const handleCancel = () => {
     Alert.alert('Cancel Order', 'Are you sure you want to cancel this order?', [
@@ -64,8 +67,8 @@ export default function OrderDetailScreen() {
     ]);
   };
 
-  if (loading) return <View style={s.center}><ActivityIndicator color={Colors.primary} size="large"/></View>;
-  if (!order)  return <View style={s.center}><Text style={s.err}>Order not found</Text></View>;
+  if (loading && !order) return <View style={s.center}><ActivityIndicator color={Colors.primary} size="large"/><Text style={{marginTop: 10, color: Colors.textSecondary}}>Loading order...</Text></View>;
+  if (!order)  return <View style={s.center}><Text style={s.err}>Order not found</Text><TouchableOpacity style={{marginTop: 12, backgroundColor: Colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: borderRadius.md}} onPress={load}><Text style={{color: Colors.white, fontWeight: '700'}}>Retry</Text></TouchableOpacity></View>;
 
   const stepIndex   = STATUS_STEPS.indexOf(order.status as OrderStatus);
   const isCancelled = order.status === 'CANCELLED';
@@ -130,22 +133,50 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
+        {/* Live Delivery Route Preview */}
+        {(!isCancelled && order.status !== 'DELIVERED') && (
+          <TouchableOpacity
+            style={[s.card, { padding: 0, overflow: 'hidden' }]}
+            onPress={() => navigation.navigate('OrderTracking', { orderId: order.id || (order as any)._id, initialOrder: order })}
+            activeOpacity={0.9}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
+              <Text style={s.sectionTitle}>Live Delivery Route</Text>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.primary }}>Open Map →</Text>
+            </View>
+            <AdvancedMapView
+              mode="tracking"
+              style={{ width: '100%', height: 180 }}
+              pickupLocation={{ latitude: 13.088, longitude: 80.265, title: 'Farm Harvest' }}
+              dropoffLocation={{ latitude: 13.075, longitude: 80.28, title: 'Your Address' }}
+              driverLocation={{ latitude: 13.082, longitude: 80.272 }}
+              theme="green"
+              showControls={false}
+              interactive={false}
+            />
+          </TouchableOpacity>
+        )}
+
         <View style={s.card}>
           <Text style={s.sectionTitle}>Items ({order.items.length})</Text>
-          {order.items.map(item => (
-            <View key={item.id} style={s.itemRow}>
-              {item.productImage
-                ? <FastImage source={{uri: item.productImage}} style={s.itemImg} resizeMode={FastImage.resizeMode.cover}/>
-                : <View style={[s.itemImg,s.itemImgPlaceholder]}><Icon name="leaf" size={20} color={Colors.primary}/></View>
-              }
-              <View style={s.itemInfo}>
-                <Text style={s.itemName}>{item.productName}</Text>
-                <Text style={s.itemSub}>by {item.farmerName ?? 'Farmer'}</Text>
-                <Text style={s.itemSub}>{item.quantity} {item.unit} × {formatPrice(item.pricePerUnit)}</Text>
+          {order.items.map(item => {
+            const unitP = Number(item.pricePerUnit ?? (item as any).unitPrice ?? (item as any).price ?? 0);
+            const itemT = Number(item.total ?? (item as any).subtotal ?? (item as any).amount ?? (unitP * (item.quantity ?? 1))) || 0;
+            return (
+              <View key={item.id || (item as any).productId} style={s.itemRow}>
+                {item.productImage
+                  ? <FastImage source={{uri: item.productImage}} style={s.itemImg} resizeMode={FastImage.resizeMode.cover}/>
+                  : <View style={[s.itemImg,s.itemImgPlaceholder]}><Icon name="leaf" size={20} color={Colors.primary}/></View>
+                }
+                <View style={s.itemInfo}>
+                  <Text style={s.itemName}>{item.productName}</Text>
+                  <Text style={s.itemSub}>by {item.farmerName ?? 'Farmer'}</Text>
+                  <Text style={s.itemSub}>{item.quantity} {item.unit} × {formatPrice(unitP)}</Text>
+                </View>
+                <Text style={s.itemTotal}>{formatPrice(itemT)}</Text>
               </View>
-              <Text style={s.itemTotal}>{formatPrice(item.total)}</Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         <View style={s.card}>

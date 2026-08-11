@@ -18,6 +18,7 @@ import { useAppSelector } from '../../store';
 import { selectCartItems, selectCartTotal } from '../../store/cartSlice';
 import { buyerApi } from '../../api/buyer';
 import { ordersApi } from '../../api/orders';
+import ENV from '../../config/env';
 import type { Address } from '../../types/buyer';
 import type { BuyerStackParamList } from '../../navigation/types';
 
@@ -25,10 +26,6 @@ import type { BuyerStackParamList } from '../../navigation/types';
 // native module isn't linked yet on first install.
 let RazorpayCheckout: any = null;
 try { RazorpayCheckout = require('react-native-razorpay').default; } catch {}
-
-// Public Razorpay test key. Replace with prod key from env before Play Store
-// release. Test mode: no real charge, accepts test cards/UPI.
-const RAZORPAY_KEY = 'rzp_test_1DP5mmOlF5G5ag';
 
 type PaymentMethod = 'COD' | 'UPI' | 'CARD';
 const PLATFORM_FEE = 5;
@@ -77,7 +74,7 @@ export const OrderConfirmationScreen: React.FC = () => {
         return;
       }
       RazorpayCheckout.open({
-        key: RAZORPAY_KEY,
+        key: ENV.RAZORPAY_KEY,
         amount: Math.round(grandTotal * 100), // paise
         currency: 'INR',
         name: 'AgriDirect',

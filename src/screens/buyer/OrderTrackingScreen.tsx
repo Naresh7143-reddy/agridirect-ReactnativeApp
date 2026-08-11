@@ -16,8 +16,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors } from '../../theme/colors';
 import { shadow, borderRadius } from '../../theme/spacing';
 import { ordersApi } from '../../api/orders';
+import { calculateSwiggyStyleEta } from '../../utils/deliveryCalc';
 import type { Order } from '../../types/order';
 import type { BuyerStackParamList } from '../../navigation/types';
+import AdvancedMapView from '../../components/map/AdvancedMapView';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SNAP_POINTS = [
@@ -69,11 +71,12 @@ export const OrderTrackingScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<BuyerStackParamList>>();
   const route = useRoute<RouteProp<BuyerStackParamList, 'OrderTracking'>>();
   const { orderId } = route.params;
+  const initialData = (route.params as any)?.initialOrder ?? (route.params as any)?.order ?? null;
 
-  const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [order, setOrder] = useState<Order | null>(initialData);
+  const [loading, setLoading] = useState(!initialData);
   const [agent, setAgent] = useState<AgentInfo | null>(null);
-  const [countdown, setCountdown] = useState(15 * 60); // 15 min ETA
+  const [countdown, setCountdown] = useState(25 * 60);
 
   const sheetY = useRef(new Animated.Value(SNAP_POINTS[1])).current;
   const lastY = useRef(SNAP_POINTS[1]);
@@ -86,10 +89,16 @@ export const OrderTrackingScreen: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Load order details
+  // Load order details & compute dynamic Swiggy/Zomato ETA
   useEffect(() => {
+    if (!order) setLoading(true);
     ordersApi.getOrderById(orderId).then((r: any) => {
-      setOrder(r.data);
+      const o: Order = r?.data ?? r;
+      if (o) {
+        setOrder(o);
+        const eta = calculateSwiggyStyleEta(3.5, o.items?.length || 2, o.createdAt, o.status);
+        setCountdown(eta.countdownSeconds);
+      }
     }).catch(() => {}).finally(() => setLoading(false));
   }, [orderId]);
 
@@ -151,13 +160,22 @@ export const OrderTrackingScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Map Placeholder */}
-      <View style={styles.mapPlaceholder}>
-        <View style={styles.mapContent}>
-          <Text style={styles.mapIcon}>🗺️</Text>
-          <Text style={styles.mapText}>Live tracking map</Text>
-          <View style={styles.agentDot} />
-        </View>
+      {/* Advanced Map Engine */}
+      <View style={styles.mapContainer}>
+        <AdvancedMapView
+          mode="tracking"
+          style={StyleSheet.absoluteFill}
+          driverLocation={{
+            latitude: agent?.lat || 13.0827,
+            longitude: agent?.lng || 80.2707,
+          }}
+          vehicleType={agent?.vehicleType || 'BIKE'}
+          etaMinutes={Math.max(1, Math.ceil(countdown / 60))}
+          pickupLocation={{ latitude: 13.088, longitude: 80.265, title: 'Farm Harvest' }}
+          dropoffLocation={{ latitude: 13.075, longitude: 80.28, title: 'Delivery Home' }}
+          theme="green"
+        />
+
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
@@ -208,9 +226,25 @@ export const OrderTrackingScreen: React.FC = () => {
               </View>
             </View>
 
+            {/* Delivery Verification OTP Highlight Card */}
+            {(order as any).deliveryOtp || (order as any).otp ? (
+              <View style={styles.otpCard}>
+                <View style={styles.otpHeader}>
+                  <Text style={styles.otpShieldIcon}>🛡️</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.otpTitle}>Delivery Verification Code</Text>
+                    <Text style={styles.otpSub}>Share this OTP with delivery agent upon arrival</Text>
+                  </View>
+                </View>
+                <View style={styles.otpCodeContainer}>
+                  <Text style={styles.otpCode}>{(order as any).deliveryOtp || (order as any).otp}</Text>
+                </View>
+              </View>
+            ) : null}
+
             {/* Status Stepper */}
             <View style={styles.stepperContainer}>
-              <Text style={styles.sectionTitle}>Order Status</Text>
+              <Text style={styles.sectionTitle}>Order Status Progression</Text>
               {STATUS_STEPS.map((step, index) => {
                 const done = index <= currentStepIndex;
                 const active = index === currentStepIndex;
@@ -218,14 +252,17 @@ export const OrderTrackingScreen: React.FC = () => {
                   <View key={step.key} style={styles.stepRow}>
                     <View style={{ alignItems: 'center', marginRight: 14 }}>
                       <View style={[styles.stepCircle, done && styles.stepCircleDone, active && styles.stepCircleActive]}>
-                        <Text style={styles.stepIcon}>{done ? '✓' : step.icon}</Text>
+                        <Text style={[styles.stepIcon, done && styles.stepIconDone, active && styles.stepIconActive]}>
+                          {done ? '✓' : step.icon}
+                        </Text>
                       </View>
                       {index < STATUS_STEPS.length - 1 && (
                         <View style={[styles.stepLine, done && styles.stepLineDone]} />
                       )}
                     </View>
                     <View style={styles.stepContent}>
-                      <Text style={[styles.stepLabel, done && styles.stepLabelDone]}>{step.label}</Text>
+                      <Text style={[styles.stepLabel, done && styles.stepLabelDone, active && styles.stepLabelActive]}>{step.label}</Text>
+                      {active && <Text style={styles.activeStepSub}>Current Status</Text>}
                     </View>
                   </View>
                 );
@@ -234,14 +271,17 @@ export const OrderTrackingScreen: React.FC = () => {
 
             {/* Expanded: items + address */}
             <View style={styles.orderItemsSection}>
-              <Text style={styles.sectionTitle}>Items</Text>
-              {order.items?.map((item: any) => (
-                <View key={item.id} style={styles.orderItemRow}>
-                  <Text style={styles.orderItemName} numberOfLines={1}>{item.productName}</Text>
-                  <Text style={styles.orderItemQty}>x{item.quantity} {item.unit}</Text>
-                  <Text style={styles.orderItemTotal}>₹{item.total?.toFixed(0) || (item.pricePerUnit * item.quantity).toFixed(0)}</Text>
-                </View>
-              ))}
+              <Text style={styles.sectionTitle}>Items Ordered</Text>
+              {order.items?.map((item: any) => {
+                const itemTotal = Number(item.total ?? item.subtotal ?? item.amount ?? ((item.pricePerUnit ?? item.unitPrice ?? item.price ?? 0) * (item.quantity ?? 1))) || 0;
+                return (
+                  <View key={item.id || item.productId} style={styles.orderItemRow}>
+                    <Text style={styles.orderItemName} numberOfLines={1}>{item.productName}</Text>
+                    <Text style={styles.orderItemQty}>x{item.quantity} {item.unit}</Text>
+                    <Text style={styles.orderItemTotal}>₹{itemTotal.toFixed(0)}</Text>
+                  </View>
+                );
+              })}
             </View>
 
             {order.deliveryAddress && (
@@ -272,6 +312,7 @@ export default OrderTrackingScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  mapContainer: { flex: 1, position: 'relative' },
   mapPlaceholder: { flex: 1, backgroundColor: '#C8E6C9', alignItems: 'center', justifyContent: 'center', position: 'relative' },
   mapContent: { alignItems: 'center' },
   mapIcon: { fontSize: 64, opacity: 0.4 },
@@ -303,14 +344,42 @@ const styles = StyleSheet.create({
   stepIcon: { fontSize: 12, color: Colors.textPrimary },
   stepLine: { width: 2, height: 24, backgroundColor: Colors.border, marginTop: 2 },
   stepLineDone: { backgroundColor: Colors.primary },
-  stepContent: { flex: 1, paddingTop: 4, paddingBottom: 20 },
-  stepLabel: { fontSize: 13, color: Colors.textHint },
+  otpCard: {
+    backgroundColor: '#FFF8E1',
+    borderWidth: 1.5,
+    borderColor: Colors.secondary,
+    borderRadius: borderRadius.lg,
+    padding: 14,
+    marginBottom: 20,
+    ...shadow.sm,
+  },
+  otpHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  otpShieldIcon: { fontSize: 24, marginRight: 10 },
+  otpTitle: { fontSize: 13, fontWeight: '800', color: Colors.secondaryDark },
+  otpSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  otpCodeContainer: {
+    backgroundColor: Colors.white,
+    borderRadius: borderRadius.md,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFE082',
+  },
+  otpCode: { fontSize: 26, fontWeight: '900', color: Colors.secondaryDark, letterSpacing: 6 },
+  stepIconDone: { color: Colors.primary },
+  stepIconActive: { color: Colors.white },
+  stepContent: { flex: 1, paddingBottom: 16 },
+  stepLabel: { fontSize: 13, color: Colors.textHint, fontWeight: '500' },
   stepLabelDone: { color: Colors.textPrimary, fontWeight: '600' },
-  orderItemsSection: { marginBottom: 12 },
-  orderItemRow: { flexDirection: 'row', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.divider },
-  orderItemName: { flex: 1, fontSize: 13, color: Colors.textSecondary },
-  orderItemQty: { fontSize: 13, color: Colors.textHint, marginHorizontal: 8 },
-  orderItemTotal: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary },
-  addressSection: { marginBottom: 32 },
-  addressText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
+  stepLabelActive: { color: Colors.primary, fontWeight: '700' },
+  activeStepSub: { fontSize: 11, color: Colors.primary, fontWeight: '600', marginTop: 2 },
+  orderItemsSection: { marginBottom: 16, borderTopWidth: 1, borderTopColor: Colors.divider, paddingTop: 16 },
+  orderItemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 4 },
+  orderItemName: { flex: 2, fontSize: 13, color: Colors.textPrimary },
+  orderItemQty: { flex: 1, fontSize: 13, color: Colors.textSecondary, textAlign: 'center' },
+  orderItemTotal: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, textAlign: 'right' },
+  addressSection: { borderTopWidth: 1, borderTopColor: Colors.divider, paddingTop: 16, marginBottom: 16 },
+  addressText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
 });

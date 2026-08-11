@@ -38,6 +38,7 @@ import { shadow, borderRadius } from '../../theme/spacing';
 import { ordersApi } from '../../api/orders';
 import { OrderStatus, type Order, type OrderItem } from '../../types/order';
 import type { FarmerScreenProps } from '../../types/navigation';
+import AdvancedMapView from '../../components/map/AdvancedMapView';
 
 // ─── Timeline config ──────────────────────────────────────────────────────────
 
@@ -223,18 +224,27 @@ const timelineStyles = StyleSheet.create({
 
 // ─── Item row ─────────────────────────────────────────────────────────────────
 
-const ItemRow: React.FC<{ item: OrderItem }> = ({ item }) => (
-  <View style={itemStyles.row}>
-    <View style={itemStyles.icon}>
-      <Icon name="leaf" size={20} color={Colors.primary} />
+const ItemRow: React.FC<{ item: OrderItem }> = ({ item }) => {
+  const itemPrice = Number(
+    item.total ??
+    (item as any).subtotal ??
+    (item as any).amount ??
+    ((item.pricePerUnit ?? (item as any).unitPrice ?? (item as any).price ?? 0) * (item.quantity ?? 1))
+  ) || 0;
+
+  return (
+    <View style={itemStyles.row}>
+      <View style={itemStyles.icon}>
+        <Icon name="leaf" size={20} color={Colors.primary} />
+      </View>
+      <View style={itemStyles.info}>
+        <Text style={itemStyles.name}>{item.productName}</Text>
+        <Text style={itemStyles.qty}>{item.quantity} {item.unit}</Text>
+      </View>
+      <Text style={itemStyles.price}>₹{itemPrice.toFixed(2)}</Text>
     </View>
-    <View style={itemStyles.info}>
-      <Text style={itemStyles.name}>{item.productName}</Text>
-      <Text style={itemStyles.qty}>{item.quantity} {item.unit}</Text>
-    </View>
-    <Text style={itemStyles.price}>₹{item.total.toFixed(2)}</Text>
-  </View>
-);
+  );
+};
 
 const itemStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12 },
@@ -281,13 +291,21 @@ const ActionSection: React.FC<ActionSectionProps> = ({ order, onAction }) => {
         </View>
       )}
       {status === OrderStatus.ACCEPTED && (
-        <TouchableOpacity
-          style={[actionStyles.btn, actionStyles.packBtn]}
-          onPress={() => onAction('pack')}
-        >
-          <Icon name="cube" size={18} color={Colors.white} />
-          <Text style={actionStyles.btnTxt}>Mark as Packed</Text>
-        </TouchableOpacity>
+        <View>
+          <View style={{ backgroundColor: Colors.info + '18', padding: 10, borderRadius: borderRadius.md, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Icon name="information-circle-outline" size={18} color={Colors.info} />
+            <Text style={{ fontSize: 12, color: Colors.textSecondary, flex: 1 }}>
+              Order is accepted! Please pack the items and tap 'Mark as Packed' so the delivery executive can pick up.
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[actionStyles.btn, actionStyles.packBtn]}
+            onPress={() => onAction('pack')}
+          >
+            <Icon name="cube" size={18} color={Colors.white} />
+            <Text style={actionStyles.btnTxt}>Mark as Packed</Text>
+          </TouchableOpacity>
+        </View>
       )}
       {status === OrderStatus.PACKED && (
         <View>
@@ -403,20 +421,33 @@ type Props = FarmerScreenProps<'FarmerOrderDetail'>;
 
 const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { orderId } = route.params;
-  const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
+  const initialData = (route.params as any)?.initialOrder ?? (route.params as any)?.order ?? null;
+  const [order, setOrder] = useState<Order | null>(initialData);
+  const [loading, setLoading] = useState<boolean>(!initialData);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [modal, setModal] = useState({ visible: false, action: '' });
 
   // ── Load ────────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
+  const loadOrderDetails = useCallback(() => {
+    if (!order) setLoading(true);
+    setErrorMsg(null);
     ordersApi.getFarmerOrderById(orderId)
-      .then((res) => setOrder((res as any).data ?? res))
+      .then((res) => {
+        const fetched = (res as any).data ?? res;
+        if (fetched) setOrder(fetched);
+      })
       .catch((err) => {
         console.log('FarmerOrderDetail error:', err?.response?.status, err?.response?.data);
-        Toast.show({ type: 'error', text1: 'Failed to load order', text2: err?.response?.data?.message ?? 'Please try again' });
+        if (!order) {
+          setErrorMsg(err?.response?.data?.message ?? err?.message ?? 'Failed to load order details');
+        }
       })
       .finally(() => setLoading(false));
+  }, [orderId, order]);
+
+  useEffect(() => {
+    loadOrderDetails();
   }, [orderId]);
 
   // ── Action ──────────────────────────────────────────────────────────────────
@@ -441,10 +472,11 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  if (loading) {
+  if (loading && !order) {
     return (
       <View style={styles.loader}>
         <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={{ color: Colors.textSecondary, marginTop: 12 }}>Loading order details...</Text>
       </View>
     );
   }
@@ -452,14 +484,20 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   if (!order) {
     return (
       <View style={styles.loader}>
-        <Text style={{ color: Colors.textSecondary }}>Order not found</Text>
+        <Icon name="alert-circle-outline" size={48} color={Colors.error} />
+        <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: '700', marginTop: 12 }}>
+          {errorMsg || 'Order details unavailable'}
+        </Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={loadOrderDetails}>
+          <Text style={styles.retryTxt}>Try Again</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  const maskedPhone = order.buyerPhone
-    ? `+91 ${order.buyerPhone.slice(0, 2)}••••••${order.buyerPhone.slice(-2)}`
-    : '—';
+  const fullBuyerPhone = order.buyerPhone
+    ? (order.buyerPhone.startsWith('+91') ? order.buyerPhone : `+91 ${order.buyerPhone}`)
+    : 'No phone number provided';
 
   return (
     <View style={styles.flex}>
@@ -470,7 +508,7 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Icon name="arrow-back" size={22} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Order Detail</Text>
+        <Text style={styles.headerTitle}>Order #{order.orderNumber || order.id?.slice(-6)}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -478,24 +516,39 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
         {/* Status timeline */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Order Status</Text>
+          <Text style={styles.sectionTitle}>Order Progress</Text>
           <StatusTimeline status={order.status} events={order.trackingEvents ?? []} />
+        </View>
+
+        {/* Live Delivery Route Map */}
+        <View style={[styles.card, { padding: 0, overflow: 'hidden' }]}>
+          <Text style={[styles.sectionTitle, { paddingHorizontal: 16, paddingTop: 14 }]}>Live Delivery Route</Text>
+          <AdvancedMapView
+            mode="tracking"
+            style={{ width: '100%', height: 200 }}
+            pickupLocation={{ latitude: 13.085, longitude: 80.265, title: 'Your Farm' }}
+            dropoffLocation={{ latitude: 13.078, longitude: 80.28, title: order.buyerName || 'Buyer Location' }}
+            driverLocation={{ latitude: 13.082, longitude: 80.272 }}
+            vehicleType="BIKE"
+            theme="green"
+            showControls={false}
+          />
         </View>
 
         {/* Order info */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Order Info</Text>
-          <InfoRow label="Order ID" value={`#${order.orderNumber}`} />
-          <InfoRow label="Placed" value={new Date(order.createdAt).toLocaleString()} />
-          <InfoRow label="Payment" value={order.paymentMethod} />
-          <InfoRow label="Payment Status" value={order.paymentStatus} />
+          <Text style={styles.sectionTitle}>Order Details</Text>
+          <InfoRow label="Order ID" value={`#${order.orderNumber || order.id}`} />
+          <InfoRow label="Placed On" value={new Date(order.createdAt).toLocaleString('en-IN')} />
+          <InfoRow label="Payment Method" value={order.paymentMethod || 'COD'} />
+          <InfoRow label="Payment Status" value={order.paymentStatus || 'PENDING'} />
         </View>
 
         {/* Items */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Items</Text>
-          {order.items.map((item) => (
-            <ItemRow key={item.id} item={item} />
+          <Text style={styles.sectionTitle}>Items Ordered ({order.items?.length || 0})</Text>
+          {order.items?.map((item) => (
+            <ItemRow key={item.id || item.productId} item={item} />
           ))}
         </View>
 
@@ -504,29 +557,70 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           <Text style={styles.sectionTitle}>Price Breakdown</Text>
           <PriceRow label="Items total" amount={order.totalAmount} />
           <PriceRow label="Delivery fee" amount={order.deliveryFee} />
-          <PriceRow label="Discount" amount={-order.discount} />
+          {(Number(order.discount) || 0) > 0 && (
+            <PriceRow label="Discount" amount={-(Number(order.discount) || 0)} />
+          )}
           <View style={styles.greenDivider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>TOTAL</Text>
-            <Text style={styles.totalAmount}>₹{order.grandTotal.toFixed(2)}</Text>
+            <Text style={styles.totalAmount}>₹{(Number(order.grandTotal ?? order.totalAmount) || 0).toFixed(2)}</Text>
+          </View>
+        </View>
+
+        {/* Buyer info (Enhanced for Farmer) */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Buyer Details</Text>
+          <View style={styles.buyerRow}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {(order.buyerName ?? 'B').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.buyerInfo}>
+              <Text style={styles.buyerName}>{order.buyerName ?? 'Customer'}</Text>
+              <Text style={styles.buyerPhone}>{fullBuyerPhone}</Text>
+            </View>
+            {order.buyerPhone ? (
+              <TouchableOpacity
+                style={styles.callBtn}
+                onPress={() => Linking.openURL(`tel:${order.buyerPhone}`)}
+              >
+                <Icon name="call" size={18} color={Colors.white} />
+                <Text style={styles.callTxt}>Call Buyer</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <View style={styles.addressRow}>
+            <Icon name="location-outline" size={18} color={Colors.primary} style={{ marginTop: 2 }} />
+            <Text style={styles.addressTxt}>
+              {typeof order.deliveryAddress === 'string'
+                ? order.deliveryAddress
+                : [
+                    (order.deliveryAddress as any)?.line1,
+                    (order.deliveryAddress as any)?.line2,
+                    (order.deliveryAddress as any)?.city,
+                    (order.deliveryAddress as any)?.state,
+                    (order.deliveryAddress as any)?.pincode,
+                  ].filter(Boolean).join(', ')}
+            </Text>
           </View>
         </View>
 
         {/* Delivery agent info */}
-        {(order.deliveryAgentName || order.deliveryAgentId) && (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Delivery Partner</Text>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Delivery Partner Details</Text>
+          {(order.deliveryAgentName || order.deliveryAgentId || (order as any).deliveryAgentPhone) ? (
             <View style={styles.buyerRow}>
               <View style={[styles.avatar, { backgroundColor: Colors.primary }]}>
                 <Icon name="bicycle" size={20} color={Colors.white} />
               </View>
               <View style={styles.buyerInfo}>
-                <Text style={styles.buyerName}>{order.deliveryAgentName ?? 'Assigned'}</Text>
+                <Text style={styles.buyerName}>{order.deliveryAgentName ?? 'Delivery Executive'}</Text>
                 <Text style={styles.buyerPhone}>
-                  {(order.status as string) === 'ASSIGNED' ? '🟡 Assigned' :
-                   (order.status as string) === 'PICKED_UP' ? '🚴 Picked Up' :
-                   (order.status as string) === 'IN_TRANSIT' || (order.status as string) === 'ON_THE_WAY' ? '🚀 On the Way' :
-                   (order.status as string) === 'DELIVERED' ? '✅ Delivered' : order.status}
+                  {(order.status as string) === 'ASSIGNED' ? '🟡 Partner Assigned' :
+                   (order.status as string) === 'PICKED_UP' ? '🚴 Picked Up from Farm' :
+                   (order.status as string) === 'IN_TRANSIT' || (order.status as string) === 'ON_THE_WAY' ? '🚀 On the Way to Buyer' :
+                   (order.status as string) === 'DELIVERED' ? '✅ Delivered to Buyer' : order.status}
                 </Text>
               </View>
               {(order as any).deliveryAgentPhone ? (
@@ -535,50 +629,18 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                   onPress={() => Linking.openURL(`tel:${(order as any).deliveryAgentPhone}`)}
                 >
                   <Icon name="call" size={18} color={Colors.white} />
-                  <Text style={styles.callTxt}>Call</Text>
+                  <Text style={styles.callTxt}>Call Agent</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
-          </View>
-        )}
-
-        {/* Buyer info */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Buyer Info</Text>
-          <View style={styles.buyerRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {(order.buyerName ?? 'B').charAt(0).toUpperCase()}
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 }}>
+              <Icon name="time-outline" size={22} color={Colors.warning} />
+              <Text style={{ fontSize: 13, color: Colors.textSecondary, flex: 1 }}>
+                Searching for nearest delivery executive. Partner will be assigned automatically after packing.
               </Text>
             </View>
-            <View style={styles.buyerInfo}>
-              <Text style={styles.buyerName}>{order.buyerName ?? '—'}</Text>
-              <Text style={styles.buyerPhone}>{maskedPhone}</Text>
-            </View>
-            {order.buyerPhone && (
-              <TouchableOpacity
-                style={styles.callBtn}
-                onPress={() => Linking.openURL(`tel:${order.buyerPhone}`)}
-              >
-                <Icon name="call" size={18} color={Colors.white} />
-                <Text style={styles.callTxt}>Call</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <View style={styles.addressRow}>
-            <Icon name="location-outline" size={16} color={Colors.primary} />
-            <Text style={styles.addressTxt}>
-              {typeof order.deliveryAddress === 'string'
-                ? order.deliveryAddress
-                : [
-                    (order.deliveryAddress as any).line1,
-                    (order.deliveryAddress as any).line2,
-                    (order.deliveryAddress as any).city,
-                    (order.deliveryAddress as any).state,
-                    (order.deliveryAddress as any).pincode,
-                  ].filter(Boolean).join(', ')}
-            </Text>
-          </View>
+          )}
         </View>
       </ScrollView>
 
@@ -606,14 +668,17 @@ const InfoRow: React.FC<{ label: string; value: string }> = ({ label, value }) =
   </View>
 );
 
-const PriceRow: React.FC<{ label: string; amount: number }> = ({ label, amount }) => (
-  <View style={priceStyles.row}>
-    <Text style={priceStyles.label}>{label}</Text>
-    <Text style={[priceStyles.amount, amount < 0 && priceStyles.discount]}>
-      {amount < 0 ? '-' : ''}₹{Math.abs(amount).toFixed(2)}
-    </Text>
-  </View>
-);
+const PriceRow: React.FC<{ label: string; amount: number }> = ({ label, amount }) => {
+  const val = Number(amount) || 0;
+  return (
+    <View style={priceStyles.row}>
+      <Text style={priceStyles.label}>{label}</Text>
+      <Text style={[priceStyles.amount, val < 0 && priceStyles.discount]}>
+        {val < 0 ? '-' : ''}₹{Math.abs(val).toFixed(2)}
+      </Text>
+    </View>
+  );
+};
 
 const infoStyles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.divider },
@@ -632,7 +697,9 @@ const priceStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: Colors.background },
-  loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loader: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  retryBtn: { marginTop: 16, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: borderRadius.md },
+  retryTxt: { color: Colors.white, fontWeight: '700', fontSize: 14 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

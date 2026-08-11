@@ -16,6 +16,7 @@ import { Colors } from '../../theme/colors';
 import { shadow, borderRadius } from '../../theme/spacing';
 import { useAppDispatch } from '../../store';
 import { clearCart } from '../../store/cartSlice';
+import { calculateSwiggyStyleEta } from '../../utils/deliveryCalc';
 import type { BuyerStackParamList } from '../../navigation/types';
 
 export const PaymentSuccessScreen: React.FC = () => {
@@ -79,7 +80,7 @@ export const PaymentSuccessScreen: React.FC = () => {
           <Text style={styles.etaIcon}>🚚</Text>
           <View>
             <Text style={styles.etaTitle}>Estimated Delivery</Text>
-            <Text style={styles.etaTime}>Today by 6 PM</Text>
+            <Text style={styles.etaTime}>{calculateSwiggyStyleEta(3.5, 2).formattedDisplay}</Text>
           </View>
         </View>
       </Animated.View>

@@ -92,3 +92,14 @@ export interface UploadImageResponse {
   imageUrl: string;
   publicId: string;
 }
+
+export interface ProductReview {
+  id: string;
+  productId: string;
+  buyerId: string;
+  buyerName: string;
+  buyerAvatar?: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}

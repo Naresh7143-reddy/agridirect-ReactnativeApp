@@ -23,18 +23,26 @@ export default function AdminOrderDetailScreen() {
   const route = useRoute<RouteP>();
   const navigation = useNavigation<NavP>();
   const { orderId } = route.params;
+  const initialData = (route.params as any)?.initialOrder ?? (route.params as any)?.order ?? null;
 
-  const [order, setOrder]     = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [order, setOrder]     = useState<Order | null>(initialData);
+  const [loading, setLoading] = useState(!initialData);
   const [updating, setUpdating] = useState(false);
 
   const load = useCallback(async () => {
-    try { const res = await ordersApi.getOrderById(orderId); setOrder(res.data); }
-    catch { Alert.alert('Error','Could not load order'); }
-    finally { setLoading(false); }
-  }, [orderId]);
+    if (!order) setLoading(true);
+    try {
+      const res: any = await ordersApi.getOrderById(orderId);
+      const fetched = res?.data ?? res;
+      if (fetched) setOrder(fetched);
+    } catch {
+      if (!order) {
+        Alert.alert('Error','Could not load order');
+      }
+    } finally { setLoading(false); }
+  }, [orderId, order]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [orderId]);
 
   const handleStatusChange = (status: OrderStatus) => {
     Alert.alert('Change Status', `Set order to "${status}"?`, [

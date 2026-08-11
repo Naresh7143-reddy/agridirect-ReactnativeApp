@@ -81,7 +81,12 @@ export default function AdminOrdersScreen() {
             return (
               <TouchableOpacity
                 style={s.card}
-                onPress={() => navigation.navigate('AdminOrderDetail',{orderId: item.id})}
+                onPress={() =>
+                  navigation.navigate('AdminOrderDetail', {
+                    orderId: item.id || (item as any)._id || (item as any).orderId,
+                    initialOrder: item,
+                  })
+                }
                 activeOpacity={0.85}
               >
                 <View style={s.cardRow}>

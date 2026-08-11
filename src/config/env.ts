@@ -23,7 +23,7 @@ const development: EnvConfig = {
 
 const production: EnvConfig = {
   API_URL: 'https://agridirect-backend-80yz.onrender.com',
-  RAZORPAY_KEY: 'rzp_live_REPLACE_WITH_LIVE_KEY', // ⚠️ Replace before Play Store release
+  RAZORPAY_KEY: 'rzp_test_SwdZmhaJQfFvHZ', // Test key (used when PAN verification is pending)
   APP_NAME: 'AgriDirect',
   SUPPORT_PHONE: '+919876543210',
   SUPPORT_EMAIL: 'support@agridirect.app',

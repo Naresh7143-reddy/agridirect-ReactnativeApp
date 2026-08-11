@@ -24,6 +24,28 @@ const initialState: LocationState = {
   hasPermission: null,
 };
 
+export const getAccurateOrNetworkPosition = (
+  options?: { timeoutHigh?: number; timeoutLow?: number },
+): Promise<GeoPosition> => {
+  const timeoutHigh = options?.timeoutHigh ?? 6000;
+  const timeoutLow = options?.timeoutLow ?? 15000;
+
+  return new Promise((resolve, reject) => {
+    Geolocation.getCurrentPosition(
+      (pos: GeoPosition) => resolve(pos),
+      (_err: GeoError) => {
+        // Fallback to low accuracy (network/wifi) if high accuracy (GPS) times out or fails
+        Geolocation.getCurrentPosition(
+          (pos2: GeoPosition) => resolve(pos2),
+          (err2: GeoError) => reject(err2),
+          { enableHighAccuracy: false, timeout: timeoutLow, maximumAge: 60000 },
+        );
+      },
+      { enableHighAccuracy: true, timeout: timeoutHigh, maximumAge: 10000 },
+    );
+  });
+};
+
 export const useLocation = () => {
   const [state, setState] = useState<LocationState>(initialState);
 
@@ -68,30 +90,25 @@ export const useLocation = () => {
       return null;
     }
 
-    return new Promise<GeoPosition | null>((resolve) => {
-      Geolocation.getCurrentPosition(
-        (position: GeoPosition) => {
-          setState((prev) => ({
-            ...prev,
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            isLoading: false,
-            error: null,
-          }));
-          resolve(position);
-        },
-        (error: GeoError) => {
-          setState((prev) => ({
-            ...prev,
-            isLoading: false,
-            error: error.message,
-          }));
-          resolve(null);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
-      );
-    });
+    try {
+      const position = await getAccurateOrNetworkPosition();
+      setState((prev) => ({
+        ...prev,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+        isLoading: false,
+        error: null,
+      }));
+      return position;
+    } catch (error: any) {
+      setState((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: error?.message || 'Could not fetch location',
+      }));
+      return null;
+    }
   }, [requestPermission]);
 
   const watchLocation = useCallback(

@@ -533,10 +533,15 @@ const FarmerOrdersScreen: React.FC = () => {
         renderItem={({ item }) => (
           <OrderCard
             order={item}
-            onPress={() => navigation.navigate('FarmerOrderDetail', { orderId: item.id })}
-            onAccept={() => openModal('accept', item.id)}
-            onReject={() => openModal('reject', item.id)}
-            onPack={() => openModal('pack', item.id)}
+            onPress={() =>
+              navigation.navigate('FarmerOrderDetail', {
+                orderId: item.id || (item as any)._id || (item as any).orderId,
+                initialOrder: item,
+              })
+            }
+            onAccept={() => openModal('accept', item.id || (item as any)._id)}
+            onReject={() => openModal('reject', item.id || (item as any)._id)}
+            onPack={() => openModal('pack', item.id || (item as any)._id)}
           />
         )}
       />

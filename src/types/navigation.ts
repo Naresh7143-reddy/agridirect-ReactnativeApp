@@ -73,8 +73,8 @@ export type BuyerStackParamList = {
   };
 
   // Orders
-  OrderDetail: { orderId: string; showRating?: boolean };
-  OrderTracking: { orderId: string };
+  OrderDetail: { orderId: string; showRating?: boolean; initialOrder?: any; order?: any };
+  OrderTracking: { orderId: string; initialOrder?: any; order?: any };
   RateReview: { orderId: string; productId?: string; farmerId?: string };
 
   // Farmer public
@@ -138,7 +138,7 @@ export type FarmerStackParamList = {
   MyProducts: undefined;
 
   // Orders
-  FarmerOrderDetail: { orderId: string };
+  FarmerOrderDetail: { orderId: string; initialOrder?: any; order?: any };
   FarmerReturns: undefined;
 
 
@@ -188,7 +188,7 @@ export type DeliveryStackParamList = {
     dropLng: number;
   };
 
-  DeliveryOrderDetail: { orderId: string };
+  DeliveryOrderDetail: { orderId: string; initialOrder?: any; order?: any };
 
   // Profile & settings
   EditProfile: undefined;
@@ -223,7 +223,7 @@ export type AdminStackParamList = {
   AdminDrawer: undefined;
   UserDetail: { userId: string };
   FarmerVerificationDetail: { farmerId: string };
-  AdminOrderDetail: { orderId: string };
+  AdminOrderDetail: { orderId: string; initialOrder?: any; order?: any };
   AdminProductDetail: { productId: string };
   AdminAddCategory: undefined;
   AdminEditCategory: { categoryId: string };

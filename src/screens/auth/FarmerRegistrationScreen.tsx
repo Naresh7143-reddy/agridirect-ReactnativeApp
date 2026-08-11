@@ -48,6 +48,7 @@ import { Colors } from '../../theme/colors';
 import { shadow, borderRadius } from '../../theme/spacing';
 import { Button } from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
+import { getAccurateOrNetworkPosition } from '../../hooks/useLocation';
 import type { AuthScreenProps } from '../../types/navigation';
 import { UserRole } from '../../types/auth';
 import { launchCamera, launchGallery } from '../../utils/imagePicker';
@@ -679,18 +680,15 @@ const FarmerRegistrationScreen: React.FC<Props> = ({ navigation, route }) => {
     }
 
     setGpsLoading(true);
-    Geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setLocation(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-        setGpsLoading(false);
-      },
-      (err) => {
-        setGpsLoading(false);
-        Toast.show({ type: 'error', text1: 'Location error', text2: err.message || 'Could not fetch GPS location.' });
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-    );
+    try {
+      const pos = await getAccurateOrNetworkPosition();
+      const { latitude, longitude } = pos.coords;
+      setLocation(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+    } catch (err: any) {
+      Toast.show({ type: 'error', text1: 'Location error', text2: err?.message || 'Could not fetch GPS location.' });
+    } finally {
+      setGpsLoading(false);
+    }
   };
 
   const toggleCrop = (crop: CropCategory) => {

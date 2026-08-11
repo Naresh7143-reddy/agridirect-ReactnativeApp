@@ -18,13 +18,27 @@ import { OfflineBanner } from './src/components/common/OfflineBanner';
 import { Colors } from './src/theme/colors';
 import ENV from './src/config/env';
 
+import { initializeAppCheck, registerFCMToken, listenFCMNotifications } from './src/utils/firebase';
+
 // Keep Render backend awake — pings every 10 min so no cold start during demo
 function useKeepBackendAwake() {
   useEffect(() => {
+    initializeAppCheck().catch(() => {});
+    registerFCMToken().catch(() => {});
+    const unsub = listenFCMNotifications((msg) => {
+      Toast.show({
+        type: 'info',
+        text1: msg?.notification?.title || 'AgriDirect Update',
+        text2: msg?.notification?.body || 'You have a new update.',
+      });
+    });
     const ping = () => fetch(`${ENV.API_URL}/health`).catch(() => {});
     ping(); // immediate ping on app open
     const interval = setInterval(ping, 10 * 60 * 1000); // every 10 min
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (typeof unsub === 'function') unsub();
+    };
   }, []);
 }
 

@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Colors } from '../../theme/colors';
 import { borderRadius, shadow } from '../../theme/spacing';
+import { supportApi } from '../../api/support';
 
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -239,15 +240,45 @@ const NotificationCard: React.FC<CardProps> = ({ item, index, onRead, onDelete }
 const NotificationsScreen: React.FC = () => {
   const navigation = useNavigation();
   const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const markAllRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const loadNotifications = useCallback(async () => {
+    try {
+      const res: any = await supportApi.getNotifications();
+      const data = res?.data ?? res;
+      if (Array.isArray(data) && data.length > 0) {
+        const parsed: Notification[] = data.map((item: any) => {
+          const itemDate = item.createdAt ? new Date(item.createdAt) : new Date();
+          const today = new Date();
+          const isToday = itemDate.toDateString() === today.toDateString();
+          const bucket = isToday ? 'Today' : 'Earlier';
+          return {
+            id: item.id || item._id,
+            type: (item.type as NotifType) || 'system',
+            title: item.title || 'AgriDirect Update',
+            body: item.body || item.message || '',
+            timestamp: itemDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            read: !!item.read,
+            bucket,
+          };
+        });
+        setNotifications(parsed);
+      }
+    } catch {}
   }, []);
 
-  const markRead = useCallback((id: string) => {
+  useEffect(() => { loadNotifications(); }, [loadNotifications]);
+
+  const markAllRead = useCallback(async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try { await supportApi.markAllNotificationsRead(); } catch {}
+  }, []);
+
+  const markRead = useCallback(async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
+    try { await supportApi.markNotificationRead(id); } catch {}
   }, []);
 
   const deleteNotif = useCallback((id: string) => {

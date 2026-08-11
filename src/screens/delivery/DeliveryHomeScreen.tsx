@@ -11,13 +11,24 @@ import { Colors } from '../../theme/colors';
 import { shadow, borderRadius, spacing } from '../../theme/spacing';
 import { deliveryApi } from '../../api/delivery';
 import type { DeliveryOrder } from '../../types/delivery';
+import AdvancedMapView from '../../components/map/AdvancedMapView';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 function formatAddr(addr: string | any): string {
   if (!addr) return 'Address not available';
-  if (typeof addr === 'string') return addr;
-  return [addr.line1, addr.city, addr.state].filter(Boolean).join(', ');
+  if (typeof addr === 'string') return addr.trim() || 'Address not available';
+  if (addr.address && typeof addr.address === 'string') return addr.address;
+  if (addr.fullAddress && typeof addr.fullAddress === 'string') return addr.fullAddress;
+  if (addr.formattedAddress && typeof addr.formattedAddress === 'string') return addr.formattedAddress;
+  const parts = [
+    addr.line1 || addr.street || addr.houseNo || addr.building,
+    addr.line2 || addr.area || addr.landmark,
+    addr.city,
+    addr.state,
+    addr.pincode || addr.zipCode,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : 'Address not available';
 }
 
 function ContactCard({
@@ -93,22 +104,36 @@ export const DeliveryHomeScreen: React.FC = () => {
   const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const [availRes, assignRes, earningsRes] = await Promise.all([
+      const [availRes, assignRes, earningsRes, profileRes] = await Promise.all([
         deliveryApi.getAvailableOrders().catch(() => ({ data: [] } as any)),
         deliveryApi.getAssignedOrders().catch(() => ({ data: [] } as any)),
         deliveryApi.getEarnings().catch(() => ({ data: null } as any)),
+        deliveryApi.getProfile().catch(() => ({ data: null } as any)),
       ]);
       // API client unwraps response.data — handle both wrapped and unwrapped shapes
       const availData: any = (availRes as any)?.data ?? availRes;
       const assignData: any = (assignRes as any)?.data ?? assignRes;
       const earningsData: any = (earningsRes as any)?.data ?? earningsRes;
+      const profileData: any = (profileRes as any)?.data ?? profileRes;
+
       setAvailable(Array.isArray(availData) ? availData : []);
       const assignedList = assignData?.items ?? assignData?.content ?? assignData ?? [];
-      setAssigned(Array.isArray(assignedList) ? assignedList : []);
+      const validAssigned: DeliveryOrder[] = Array.isArray(assignedList) ? assignedList : [];
+      setAssigned(validAssigned);
       setEarnings(earningsData);
+
+      const hasActive = validAssigned.some(o => ['assigned', 'picked_up', 'in_transit'].includes(o.status));
+      const onlineState = profileData?.isAvailable ?? profileData?.available ?? hasActive;
+      if (onlineState || hasActive) {
+        setIsOnline(true);
+        Animated.timing(toggleBg, { toValue: 1, duration: 300, useNativeDriver: false }).start();
+      } else if (profileData?.isAvailable !== undefined) {
+        setIsOnline(!!profileData.isAvailable);
+        Animated.timing(toggleBg, { toValue: profileData.isAvailable ? 1 : 0, duration: 300, useNativeDriver: false }).start();
+      }
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [toggleBg]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -118,10 +143,11 @@ export const DeliveryHomeScreen: React.FC = () => {
       Animated.spring(toggleScale, { toValue: 0.9, useNativeDriver: true }),
       Animated.spring(toggleScale, { toValue: 1, useNativeDriver: true }),
     ]).start();
-    Animated.timing(toggleBg, { toValue: isOnline ? 0 : 1, duration: 400, useNativeDriver: false }).start();
+    const nextState = !isOnline;
+    Animated.timing(toggleBg, { toValue: nextState ? 1 : 0, duration: 400, useNativeDriver: false }).start();
     try {
-      await deliveryApi.updateAvailability(!isOnline);
-      setIsOnline(prev => !prev);
+      await deliveryApi.updateAvailability(nextState);
+      setIsOnline(nextState);
     } catch {}
     finally { setTimeout(() => setToggling(false), 500); }
   }, [isOnline, toggleScale, toggleBg]);
@@ -144,7 +170,18 @@ export const DeliveryHomeScreen: React.FC = () => {
         try {
           await deliveryApi.updateOrderStatus(orderId, status as any);
           loadData();
-        } catch { Alert.alert('Error', 'Could not update status'); }
+        } catch (err: any) {
+          const msg = err?.message || err?.response?.data?.message || 'Could not update status';
+          if (msg.includes('PACKED') || msg.includes('packed')) {
+            Alert.alert(
+              'Waiting for Farmer',
+              'Farmer has not marked this order as PACKED yet. Please ask the farmer to tap "Mark as Packed" on their AgriDirect app before pickup.',
+              [{ text: 'OK' }]
+            );
+          } else {
+            Alert.alert('Update Failed', msg);
+          }
+        }
         finally { setUpdatingId(null); }
       }},
     ]);
@@ -153,6 +190,10 @@ export const DeliveryHomeScreen: React.FC = () => {
   const bgColor = toggleBg.interpolate({ inputRange: [0, 1], outputRange: [Colors.error, Colors.primary] });
 
   const activeDelivery = assigned.find(o => ['assigned','picked_up','in_transit'].includes(o.status));
+  const todayDelivered = assigned.filter(o => o.status === 'delivered');
+  const todayEarnedFallback = todayDelivered.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+  const todayEarnedVal = earnings?.today ?? earnings?.todayEarnings ?? (todayEarnedFallback > 0 ? todayEarnedFallback : 0);
+  const monthEarnedVal = earnings?.thisMonth ?? earnings?.monthEarnings ?? (todayEarnedFallback > 0 ? todayEarnedFallback : 0);
 
   return (
     <View style={styles.container}>
@@ -164,10 +205,17 @@ export const DeliveryHomeScreen: React.FC = () => {
       {/* Online/offline map area */}
       <View style={[styles.mapPlaceholder, !isOnline && styles.mapOffline]}>
         {isOnline ? (
-          <>
-            <Animated.View style={[styles.mapPulse, { transform: [{ scale: pulse }] }]} />
-            <Text style={styles.mapOnlineText}>You are visible to farmers nearby</Text>
-          </>
+          <AdvancedMapView
+            mode="tracking"
+            style={StyleSheet.absoluteFill}
+            driverLocation={{ latitude: 13.0827, longitude: 80.2707 }}
+            pickupLocation={{ latitude: 13.088, longitude: 80.265, title: 'Farm Zone' }}
+            dropoffLocation={{ latitude: 13.075, longitude: 80.28, title: 'Customer Zone' }}
+            vehicleType="BIKE"
+            theme="swiggy"
+            showHud={true}
+            showControls={true}
+          />
         ) : (
           <>
             <Text style={styles.offlineIcon}>😴</Text>
@@ -199,9 +247,9 @@ export const DeliveryHomeScreen: React.FC = () => {
         <Text style={styles.sectionTitle}>Today's Stats</Text>
         <View style={styles.statsRow}>
           {[
-            { icon: '📦', label: 'Deliveries', value: String(earnings?.todayDeliveries ?? assigned.filter(o => o.status === 'delivered').length) },
-            { icon: '💰', label: 'Earned Today', value: `₹${earnings?.today ?? 0}` },
-            { icon: '💵', label: 'This Month', value: `₹${earnings?.thisMonth ?? 0}` },
+            { icon: '📦', label: 'Deliveries', value: String(earnings?.todayDeliveries ?? earnings?.todayCount ?? todayDelivered.length) },
+            { icon: '💰', label: 'Earned Today', value: `₹${todayEarnedVal}` },
+            { icon: '💵', label: 'This Month', value: `₹${monthEarnedVal}` },
           ].map(s => (
             <View key={s.label} style={styles.statCard}>
               <Text style={styles.statIcon}>{s.icon}</Text>
@@ -215,7 +263,12 @@ export const DeliveryHomeScreen: React.FC = () => {
         {activeDelivery && (
           <TouchableOpacity
             style={styles.activeCard}
-            onPress={() => navigation.navigate('DeliveryOrderDetail', { orderId: activeDelivery.id || (activeDelivery as any).orderId })}
+            onPress={() =>
+              navigation.navigate('DeliveryOrderDetail', {
+                orderId: activeDelivery.id || (activeDelivery as any)._id || activeDelivery.orderId,
+                initialOrder: activeDelivery,
+              })
+            }
             activeOpacity={0.85}
           >
             <LinearGradient colors={Colors.gradientGreen} style={styles.activeGradient}>

@@ -6,6 +6,7 @@ import { Colors, OrderStatusColors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing, borderRadius, shadow } from '../../theme/spacing';
 import { formatPrice, formatDate, truncateText } from '../../utils/format';
+import { calculateSwiggyStyleEta } from '../../utils/deliveryCalc';
 
 interface OrderCardProps {
   order: Order;
@@ -65,10 +66,10 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onPress }) => {
         <Text style={styles.total}>{formatPrice(order.grandTotal)}</Text>
       </View>
 
-      {order.estimatedDelivery && order.status !== OrderStatus.DELIVERED && order.status !== OrderStatus.CANCELLED && (
+      {order.status !== OrderStatus.DELIVERED && order.status !== OrderStatus.CANCELLED && (
         <View style={styles.etaBadge}>
           <Text style={styles.etaText}>
-            Est. delivery: {formatDate(order.estimatedDelivery, 'short')}
+            ⚡ {calculateSwiggyStyleEta(3.5, order.items?.length || 2, order.createdAt, order.status).etaRangeStr}
           </Text>
         </View>
       )}

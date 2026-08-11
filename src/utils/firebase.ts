@@ -97,15 +97,25 @@ export const initializeAppCheck = async (): Promise<void> => {
     const appCheckModule = require('@react-native-firebase/app-check');
     const { Platform } = require('react-native');
     
-    // Use PlayIntegrity on Android (Google Play Services)
-    // Use DeviceCheck on iOS (Apple services)
     let provider;
     if (Platform.OS === 'android') {
-      provider = new appCheckModule.PlayIntegrityProvider();
+      const PlayIntegrityProvider = appCheckModule.PlayIntegrityProvider || appCheckModule.default?.PlayIntegrityProvider;
+      if (typeof PlayIntegrityProvider === 'function') {
+        provider = new PlayIntegrityProvider();
+      } else if (typeof appCheck.newPlayIntegrityProvider === 'function') {
+        provider = appCheck.newPlayIntegrityProvider();
+      }
     } else if (Platform.OS === 'ios') {
-      provider = new appCheckModule.DeviceCheckProvider();
-    } else {
-      if (__DEV__) console.warn('[Firebase] AppCheck provider not supported on this platform');
+      const DeviceCheckProvider = appCheckModule.DeviceCheckProvider || appCheckModule.default?.DeviceCheckProvider;
+      if (typeof DeviceCheckProvider === 'function') {
+        provider = new DeviceCheckProvider();
+      } else if (typeof appCheck.newDeviceCheckProvider === 'function') {
+        provider = appCheck.newDeviceCheckProvider();
+      }
+    }
+
+    if (!provider) {
+      if (__DEV__) console.warn('[Firebase] AppCheck provider not available on this environment');
       return;
     }
 
@@ -141,6 +151,48 @@ export const getFirebaseIdToken = async (forceRefresh = false): Promise<string> 
 export const firebaseSignOut = async (): Promise<void> => {
   const user = getAuth()?.currentUser;
   if (user) await getAuth().signOut();
+};
+
+/**
+ * Request notification permissions and register FCM token with backend
+ */
+export const registerFCMToken = async (): Promise<string | null> => {
+  try {
+    const messaging = getMessaging();
+    if (!messaging) return null;
+    const authStatus = await messaging.requestPermission();
+    const enabled =
+      authStatus === 1 || // AUTHORIZED
+      authStatus === 2;   // PROVISIONAL
+    if (enabled) {
+      const token = await messaging.getToken();
+      if (__DEV__) console.log('[FCM Token]:', token);
+      try {
+        const client = require('../api/client').default;
+        await client.post('/api/auth/fcm-token', { token });
+      } catch {}
+      return token;
+    }
+  } catch (e: any) {
+    if (__DEV__) console.warn('[FCM Registration Error]:', e?.message);
+  }
+  return null;
+};
+
+/**
+ * Setup foreground push notification listeners
+ */
+export const listenFCMNotifications = (onNotification: (msg: any) => void) => {
+  try {
+    const messaging = getMessaging();
+    if (!messaging) return () => {};
+    return messaging.onMessage(async (remoteMessage: any) => {
+      if (__DEV__) console.log('[FCM Message Received]:', remoteMessage);
+      onNotification(remoteMessage);
+    });
+  } catch {
+    return () => {};
+  }
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────

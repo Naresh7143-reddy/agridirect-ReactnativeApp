@@ -56,13 +56,18 @@ export const usePayment = () => {
           return { success: false, error: 'razorpay_not_installed' };
         }
 
+        const rpData: any = rpOrder;
+        const razorpayOrderId = rpData.razorpay_order_id || rpData.razorpayOrderId || rpData.orderId;
+        const razorpayKey = rpData.key_id || rpData.key || ENV.RAZORPAY_KEY;
+        const orderAmount = rpData.amount != null ? rpData.amount : amount;
+
         const options = {
-          key:         ENV.RAZORPAY_KEY,
-          amount:      rpOrder.amount * 100,          // Razorpay expects paise
-          currency:    rpOrder.currency ?? 'INR',
+          key:         razorpayKey,
+          amount:      Math.round(orderAmount * 100), // Razorpay expects paise
+          currency:    rpData.currency ?? 'INR',
           name:        'AgriDirect',
           description: 'Farm fresh order',
-          order_id:    rpOrder.razorpayOrderId,
+          order_id:    razorpayOrderId,
           prefill: {
             name:    user?.name    ?? '',
             contact: user?.phone   ?? '',
@@ -80,7 +85,7 @@ export const usePayment = () => {
           razorpayOrderId:    paymentData.razorpay_order_id,
           razorpayPaymentId:  paymentData.razorpay_payment_id,
           razorpaySignature:  paymentData.razorpay_signature,
-          orderId:            paymentData.razorpay_order_id,
+          orderId:            orderId,
         });
 
         if (verification.success) {

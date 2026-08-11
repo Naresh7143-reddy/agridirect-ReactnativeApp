@@ -6,6 +6,7 @@ import type {
   CreateProductRequest,
   UpdateProductRequest,
   ProductFilters,
+  ProductReview,
 } from '../types/product';
 
 export const productsApi = {
@@ -73,4 +74,18 @@ export const productsApi = {
   /** Toggle product availability on/off */
   toggleAvailability: (id: string): Promise<ApiResponse<Product>> =>
     client.patch(`/api/farmer/products/${id}/availability`),
+
+  // ── Reviews ──────────────────────────────────────────────────────────────────
+
+  /** Fetch reviews for a product */
+  getReviews: (productId: string): Promise<ApiResponse<ProductReview[]>> =>
+    client.get(`/api/products/${productId}/reviews`),
+
+  /** Submit a rating and review for a product */
+  submitReview: (
+    productId: string,
+    rating: number,
+    comment: string,
+  ): Promise<ApiResponse<ProductReview>> =>
+    client.post(`/api/products/${productId}/reviews`, { rating, comment }),
 };

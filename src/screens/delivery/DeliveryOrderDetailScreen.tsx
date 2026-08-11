@@ -11,6 +11,7 @@ import { borderRadius, shadow, spacing } from '../../theme/spacing';
 import { deliveryApi } from '../../api/delivery';
 import type { DeliveryOrder } from '../../types/delivery';
 import type { DeliveryStackParamList } from '../../types/navigation';
+import AdvancedMapView from '../../components/map/AdvancedMapView';
 
 type RouteP = RouteProp<DeliveryStackParamList, 'DeliveryOrderDetail'>;
 type NavP   = NativeStackNavigationProp<DeliveryStackParamList>;
@@ -25,20 +26,28 @@ export default function DeliveryOrderDetailScreen() {
   const route = useRoute<RouteP>();
   const navigation = useNavigation<NavP>();
   const { orderId } = route.params;
+  const initialData = (route.params as any)?.initialOrder ?? (route.params as any)?.order ?? null;
 
-  const [order, setOrder]     = useState<DeliveryOrder | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [order, setOrder]     = useState<DeliveryOrder | null>(initialData);
+  const [loading, setLoading] = useState(!initialData);
   const [updating, setUpdating]= useState(false);
 
   const load = useCallback(async () => {
+    if (!order) setLoading(true);
     try {
       const res = await deliveryApi.getOrderById(orderId);
-      setOrder(res.data);
-    } catch { Alert.alert('Error', 'Could not load order'); }
-    finally { setLoading(false); }
-  }, [orderId]);
+      const fetched = res?.data ?? res;
+      if (fetched) setOrder(fetched);
+    } catch {
+      if (!order) {
+        Alert.alert('Error', 'Could not load order details');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId, order]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [orderId]);
 
   const handleStatusUpdate = async () => {
     if (!order) return;
@@ -63,7 +72,18 @@ export default function DeliveryOrderDetailScreen() {
         try {
           await deliveryApi.updateOrderStatus(orderId, next.status as any);
           load();
-        } catch { Alert.alert('Error', 'Could not update status'); }
+        } catch (err: any) {
+          const msg = err?.message || err?.response?.data?.message || 'Could not update status';
+          if (msg.includes('PACKED') || msg.includes('packed')) {
+            Alert.alert(
+              'Waiting for Farmer',
+              'Farmer has not marked this order as PACKED yet. Please ask the farmer to tap "Mark as Packed" on their AgriDirect app before pickup.',
+              [{ text: 'OK' }]
+            );
+          } else {
+            Alert.alert('Update Failed', msg);
+          }
+        }
         finally { setUpdating(false); }
       }},
     ]);
@@ -97,34 +117,34 @@ export default function DeliveryOrderDetailScreen() {
           </View>
         </View>
 
-        {/* Route Navigation Button */}
-        {(order.pickupLat || order.dropLat) && (
-          <View style={s.card}>
-            <Text style={s.sectionTitle}>Navigation</Text>
+        {/* Live Route Map Navigation */}
+        <View style={[s.card, { padding: 0, overflow: 'hidden' }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
+            <Text style={s.sectionTitle}>Interactive Navigation Map</Text>
             <TouchableOpacity
-              style={s.openMapsBtn}
               onPress={() => {
-                const lat = order.status === 'assigned' ? order.pickupLat : order.dropLat;
-                const lng = order.status === 'assigned' ? order.pickupLng : order.dropLng;
-                if (lat && lng) {
-                  const url = Platform.select({
-                    ios: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
-                    android: `google.navigation:q=${lat},${lng}&mode=d`,
-                  });
-                  const fallback = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-                  if (url) {
-                    Linking.canOpenURL(url)
-                      .then(ok => ok ? Linking.openURL(url) : Linking.openURL(fallback))
-                      .catch(() => Linking.openURL(fallback));
-                  }
-                }
+                navigation.navigate('DeliveryNavigation', {
+                  orderId: order.orderId,
+                  pickupLat: order.pickupLat ?? 13.0827,
+                  pickupLng: order.pickupLng ?? 80.2707,
+                  dropLat: order.dropLat ?? 13.075,
+                  dropLng: order.dropLng ?? 80.28,
+                });
               }}
             >
-              <Icon name="navigate" size={18} color={Colors.white} />
-              <Text style={s.openMapsText}>Open in Google Maps</Text>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.primary }}>Start Turn-by-Turn →</Text>
             </TouchableOpacity>
           </View>
-        )}
+          <AdvancedMapView
+            mode="navigation"
+            style={{ width: '100%', height: 210 }}
+            pickupLocation={{ latitude: order.pickupLat || 13.0827, longitude: order.pickupLng || 80.2707, title: order.farmerName || 'Farmer Pickup' }}
+            dropoffLocation={{ latitude: order.dropLat || 13.075, longitude: order.dropLng || 80.28, title: order.buyerName || 'Buyer Dropoff' }}
+            driverLocation={{ latitude: order.pickupLat ? (order.pickupLat + 0.003) : 13.08, longitude: order.pickupLng ? (order.pickupLng + 0.002) : 80.275 }}
+            vehicleType="BIKE"
+            theme="swiggy"
+          />
+        </View>
 
         {/* Pickup */}
         <View style={s.card}>
