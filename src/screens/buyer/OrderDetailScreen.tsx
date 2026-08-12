@@ -76,23 +76,45 @@ function getStatusColors(status: string): { color: string; bg: string } {
   return map[status?.toUpperCase()] ?? { color: Colors.textSecondary, bg: Colors.border };
 }
 
-// Exact date formatting: "12 August 2026 at 02:46 pm"
-function formatDateExact(val: any): string {
-  if (!val) return '';
+function parseFlexibleDate(val: any): Date | null {
+  if (!val) return null;
   try {
-    let d: Date;
     if (Array.isArray(val)) {
       const [y, mo, day, h = 0, mi = 0, s = 0] = val;
-      d = new Date(y, mo - 1, day, h, mi, s);
-    } else if (typeof val === 'number') {
-      d = new Date(val);
-    } else if (typeof val === 'string') {
-      const clean = val.includes('T') ? val : val.replace(' ', 'T');
-      d = new Date(clean);
-    } else {
-      d = new Date(val);
+      return new Date(y, mo - 1, day, h, mi, s);
     }
-    if (isNaN(d.getTime())) return '';
+    if (typeof val === 'number') {
+      return new Date(val);
+    }
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (!trimmed.endsWith('Z') && !trimmed.includes('+') && !trimmed.includes('-0') && !trimmed.includes('-1')) {
+        const parts = trimmed.split(/[-T :.]/);
+        if (parts.length >= 3) {
+          const y  = parseInt(parts[0], 10);
+          const mo = parseInt(parts[1], 10) - 1;
+          const d  = parseInt(parts[2], 10);
+          const h  = parts[3] ? parseInt(parts[3], 10) : 0;
+          const mi = parts[4] ? parseInt(parts[4], 10) : 0;
+          const s  = parts[5] ? parseInt(parts[5], 10) : 0;
+          return new Date(y, mo, d, h, mi, s);
+        }
+      }
+      const d = new Date(trimmed);
+      if (!isNaN(d.getTime())) return d;
+    }
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
+}
+
+// Exact date formatting: "12 August 2026 at 02:46 pm"
+function formatDateExact(val: any): string {
+  const d = parseFlexibleDate(val);
+  if (!d) return '';
+  try {
     const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
     const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
     return `${dateStr} at ${timeStr}`;
@@ -160,11 +182,11 @@ export default function OrderDetailScreen() {
       const fetched = unwrapOrder(res);
       if (fetched) setOrder(fetched);
     } catch (e: any) {
-      if (!initial) Alert.alert('Error', e?.message ?? 'Could not load order');
+      // ignore
     } finally {
       setLoading(false);
     }
-  }, [orderId, initial]);
+  }, [orderId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
