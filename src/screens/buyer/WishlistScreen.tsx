@@ -186,7 +186,13 @@ const WishlistScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            (navigation as any).navigate('HomeTab');
+          }
+        }} style={styles.backBtn}>
           <Icon name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Wishlist ({wishlist.length})</Text>
@@ -200,7 +206,13 @@ const WishlistScreen: React.FC = () => {
           <Text style={styles.emptyText}>Save products you love for later</Text>
           <TouchableOpacity
             style={styles.exploreBtn}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                (navigation as any).navigate('HomeTab');
+              }
+            }}
             activeOpacity={0.8}
           >
             <Text style={styles.exploreBtnText}>Start Exploring</Text>

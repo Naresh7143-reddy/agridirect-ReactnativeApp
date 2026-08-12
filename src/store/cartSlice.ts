@@ -100,8 +100,8 @@ const cartSlice = createSlice({
       
       const incomingFarmerId =
         product.farmerId ||
-        (product.farmer as any)?._id ||
-        (product.farmer as any)?.id ||
+        (product as any).farmer?._id ||
+        (product as any).farmer?.id ||
         '';
 
       // Enforce single-farmer per cart

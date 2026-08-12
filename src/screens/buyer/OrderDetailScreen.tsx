@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator, Alert, ScrollView, StyleSheet,
   Text, TouchableOpacity, View,
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
 import FastImage from 'react-native-fast-image';
@@ -19,45 +19,71 @@ type RouteP = RouteProp<BuyerStackParamList, 'OrderDetail'>;
 type NavP   = NativeStackNavigationProp<BuyerStackParamList>;
 
 const STATUS_STEPS: OrderStatus[] = [
-  'PENDING' as OrderStatus, 'ACCEPTED' as OrderStatus, 'PACKED' as OrderStatus,
-  'PICKED_UP' as OrderStatus, 'IN_TRANSIT' as OrderStatus, 'DELIVERED' as OrderStatus,
+  'PENDING' as OrderStatus,
+  'ACCEPTED' as OrderStatus,
+  'PACKED' as OrderStatus,
+  'PICKED_UP' as OrderStatus,
+  'IN_TRANSIT' as OrderStatus,
+  'DELIVERED' as OrderStatus,
 ];
+
 const STATUS_LABELS: Record<string, string> = {
-  PENDING:'Order Placed', ACCEPTED:'Accepted by Farmer', PACKED:'Packed & Ready',
-  PICKED_UP:'Picked Up', IN_TRANSIT:'Out for Delivery', DELIVERED:'Delivered', CANCELLED:'Cancelled',
+  PENDING: 'Order Placed',
+  ACCEPTED: 'Accepted by Farmer',
+  PACKED: 'Packed & Ready',
+  PICKED_UP: 'Picked Up',
+  IN_TRANSIT: 'In Transit',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
 };
+
 const STATUS_ICONS: Record<string, string> = {
-  PENDING:'receipt-outline', ACCEPTED:'checkmark-circle-outline', PACKED:'cube-outline',
-  PICKED_UP:'bicycle-outline', IN_TRANSIT:'car-outline', DELIVERED:'home-outline', CANCELLED:'close-circle-outline',
+  PENDING: 'receipt-outline',
+  ACCEPTED: 'checkmark-circle-outline',
+  PACKED: 'cube-outline',
+  PICKED_UP: 'bicycle-outline',
+  IN_TRANSIT: 'car-outline',
+  DELIVERED: 'home-outline',
+  CANCELLED: 'close-circle-outline',
 };
 
 export default function OrderDetailScreen() {
   const route = useRoute<RouteP>();
   const navigation = useNavigation<NavP>();
-  const { orderId } = route.params;
+  const orderId = route.params?.orderId;
   const initialData = (route.params as any)?.initialOrder ?? (route.params as any)?.order ?? null;
 
   const [order, setOrder]     = useState<Order | null>(initialData);
   const [loading, setLoading] = useState(!initialData);
 
   const load = useCallback(async () => {
-    if (!order) setLoading(true);
+    if (!orderId) {
+      setLoading(false);
+      return;
+    }
     try {
       const res: any = await ordersApi.getOrderById(orderId);
       const fetched = res?.data ?? res;
-      if (fetched) setOrder(fetched);
+      if (fetched && typeof fetched === 'object') {
+        setOrder(fetched);
+      }
     } catch (e: any) {
-      if (!order) {
+      if (!initialData) {
         Alert.alert('Error', e?.message || 'Could not load order details');
       }
     } finally {
       setLoading(false);
     }
-  }, [orderId, order]);
+  }, [orderId, initialData]);
 
-  useEffect(() => { load(); }, [orderId]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const handleCancel = () => {
+    if (!orderId) return;
     Alert.alert('Cancel Order', 'Are you sure you want to cancel this order?', [
       { text: 'No', style: 'cancel' },
       { text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
@@ -68,17 +94,24 @@ export default function OrderDetailScreen() {
   };
 
   if (loading && !order) return <View style={s.center}><ActivityIndicator color={Colors.primary} size="large"/><Text style={{marginTop: 10, color: Colors.textSecondary}}>Loading order...</Text></View>;
-  if (!order)  return <View style={s.center}><Text style={s.err}>Order not found</Text><TouchableOpacity style={{marginTop: 12, backgroundColor: Colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: borderRadius.md}} onPress={load}><Text style={{color: Colors.white, fontWeight: '700'}}>Retry</Text></TouchableOpacity></View>;
+  if (!order)  return <View style={s.center}><Text style={s.err}>Order not found</Text><TouchableOpacity style={{marginTop: 12, backgroundColor: Colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: borderRadius.md}} onPress={() => navigation.goBack()}><Text style={{color: Colors.white, fontWeight: '700'}}>Go Back</Text></TouchableOpacity></View>;
 
-  const stepIndex   = STATUS_STEPS.indexOf(order.status as OrderStatus);
-  const isCancelled = order.status === 'CANCELLED';
-  const canCancel   = ['PENDING','ACCEPTED'].includes(order.status);
-  const canTrack    = ['PICKED_UP','IN_TRANSIT'].includes(order.status);
+  const orderStatus = (order.status?.toUpperCase() || 'PENDING') as OrderStatus;
+  const stepIndex   = STATUS_STEPS.indexOf(orderStatus);
+  const isCancelled = orderStatus === 'CANCELLED';
+  const canCancel   = ['PENDING','ACCEPTED'].includes(orderStatus);
+  const canTrack    = ['PICKED_UP','IN_TRANSIT','ON_THE_WAY'].includes(orderStatus);
 
   return (
     <View style={s.root}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={s.back}>
+        <TouchableOpacity onPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            (navigation as any).navigate('BuyerTabs', { screen: 'OrdersTab' });
+          }
+        }} style={s.back}>
           <Icon name="arrow-back" size={22} color={Colors.textPrimary}/>
         </TouchableOpacity>
         <Text style={s.headerTitle}>Order Details</Text>
@@ -158,12 +191,14 @@ export default function OrderDetailScreen() {
         )}
 
         <View style={s.card}>
-          <Text style={s.sectionTitle}>Items ({order.items.length})</Text>
-          {order.items.map(item => {
+          <Text style={s.sectionTitle}>Items ({order.items?.length || 0})</Text>
+          {order.items?.map((item, idx) => {
+            if (!item) return null;
             const unitP = Number(item.pricePerUnit ?? (item as any).unitPrice ?? (item as any).price ?? 0);
             const itemT = Number(item.total ?? (item as any).subtotal ?? (item as any).amount ?? (unitP * (item.quantity ?? 1))) || 0;
+            const itemKey = item.id || (item as any).productId || `item-${idx}`;
             return (
-              <View key={item.id || (item as any).productId} style={s.itemRow}>
+              <View key={itemKey} style={s.itemRow}>
                 {item.productImage
                   ? <FastImage source={{uri: item.productImage}} style={s.itemImg} resizeMode={FastImage.resizeMode.cover}/>
                   : <View style={[s.itemImg,s.itemImgPlaceholder]}><Icon name="leaf" size={20} color={Colors.primary}/></View>

@@ -1,6 +1,6 @@
 module.exports = {
   preset: '@react-native/jest-preset',
-  testPathIgnorePatterns: ['/node_modules/', '/e2e/', '/android/', '/ios/'],
+  testPathIgnorePatterns: ['/node_modules/', '/e2e/', '/appium-tests/', '/android/', '/ios/'],
   setupFiles: ['./node_modules/react-native-gesture-handler/jestSetup.js'],
   moduleNameMapper: {
     '^react-native-reanimated$': '<rootDir>/__mocks__/react-native-reanimated.js',
@@ -8,6 +8,7 @@ module.exports = {
     '^@react-native-community/geolocation$': '<rootDir>/__mocks__/geolocation.js',
     '^react-native-vector-icons/(.*)$': '<rootDir>/__mocks__/vector-icons.js',
     '^lottie-react-native$': '<rootDir>/__mocks__/lottie.js',
+    '^@react-native-async-storage/async-storage$': '<rootDir>/__mocks__/async-storage.js',
     '^react-native-toast-message$': '<rootDir>/__mocks__/toast.js',
     '^react-native-haptic-feedback$': '<rootDir>/__mocks__/haptic.js',
   },

@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -420,8 +421,9 @@ const cmStyles = StyleSheet.create({
 type Props = FarmerScreenProps<'FarmerOrderDetail'>;
 
 const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { orderId } = route.params;
-  const initialData = (route.params as any)?.initialOrder ?? (route.params as any)?.order ?? null;
+  const params = route?.params ?? {};
+  const orderId = params.orderId;
+  const initialData = (params as any)?.initialOrder ?? (params as any)?.order ?? null;
   const [order, setOrder] = useState<Order | null>(initialData);
   const [loading, setLoading] = useState<boolean>(!initialData);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -430,7 +432,7 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   // ── Load ────────────────────────────────────────────────────────────────────
 
   const loadOrderDetails = useCallback(() => {
-    if (!order) setLoading(true);
+    if (!orderId) return;
     setErrorMsg(null);
     ordersApi.getFarmerOrderById(orderId)
       .then((res) => {
@@ -439,16 +441,20 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       })
       .catch((err) => {
         console.log('FarmerOrderDetail error:', err?.response?.status, err?.response?.data);
-        if (!order) {
+        if (!initialData) {
           setErrorMsg(err?.response?.data?.message ?? err?.message ?? 'Failed to load order details');
         }
       })
       .finally(() => setLoading(false));
-  }, [orderId, order]);
-
-  useEffect(() => {
-    loadOrderDetails();
   }, [orderId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (orderId) {
+        loadOrderDetails();
+      }
+    }, [orderId, loadOrderDetails])
+  );
 
   // ── Action ──────────────────────────────────────────────────────────────────
 
@@ -505,7 +511,13 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            (navigation as any).navigate('FarmerTabs', { screen: 'OrdersTab' });
+          }
+        }}>
           <Icon name="arrow-back" size={22} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Order #{order.orderNumber || order.id?.slice(-6)}</Text>

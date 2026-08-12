@@ -33,6 +33,7 @@ import {
   Alert,
   ScrollView,
   Animated,
+  Image,
 } from 'react-native';
 import Reanimated, {
   useSharedValue,
@@ -232,6 +233,13 @@ const MessageBubble: React.FC<{ message: UIMessage }> = ({ message }) => {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
+          {message.imageUri && (
+            <Image
+              source={{ uri: message.imageUri }}
+              style={{ width: 180, height: 180, borderRadius: 12, marginBottom: 8 }}
+              resizeMode="cover"
+            />
+          )}
           <Text style={bubbleStyles.userText}>{message.text}</Text>
         </LinearGradient>
         <Text style={bubbleStyles.ts}>{ts}</Text>
@@ -386,34 +394,47 @@ const AIAssistantScreen: React.FC = () => {
       imageUri: uri,
       timestamp: new Date(),
     };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [userMsg, ...prev]);
     setIsTyping(true);
     try {
       const formData = new FormData();
-      formData.append('image', { uri, type: 'image/jpeg', name: 'crop.jpg' } as any);
+      formData.append('image', {
+        uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+        type: 'image/jpeg',
+        name: 'crop.jpg',
+      } as any);
+      formData.append('cropName', 'crop');
+
       const apiResult: any = await aiApi.detectDisease(formData);
       // API client unwraps, so apiResult is { data: DiseaseDetectionResult } or DiseaseDetectionResult
       const result = apiResult?.data ?? apiResult;
-      const summary = result.diseaseName
-        ? `🔍 Detected: **${result.diseaseName}** (${result.severity} severity)\n\n${result.treatment?.[0]?.description ?? 'Consult your local agronomist.'}`
-        : 'No disease detected. Your crop looks healthy! 🌱';
+      const summary = result?.diseaseName
+        ? `🔍 Detected: **${result.diseaseName}** (${result.severity || 'moderate'} severity)\n\n${result.treatment?.[0]?.description ?? 'Consult your local agronomist.'}`
+        : (typeof result === 'string' ? result : 'No disease detected. Your crop looks healthy! 🌱');
+
       const botMsg: UIMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         type: 'disease',
         text: summary,
+        diseaseResult: result?.diseaseName ? result : undefined,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, botMsg]);
-    } catch {
+      setMessages((prev) => [botMsg, ...prev]);
+    } catch (e: any) {
+      const backendMsg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        'Could not analyze the image. Please try again.';
       const errMsg: UIMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         type: 'text',
-        text: 'Could not analyze the image. Please try again.',
+        text: `⚠️ Disease Detection Error: ${backendMsg}`,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, errMsg]);
+      setMessages((prev) => [errMsg, ...prev]);
     } finally {
       setIsTyping(false);
     }

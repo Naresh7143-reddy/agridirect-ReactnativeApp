@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors, OrderStatusColors } from '../../theme/colors';
 import { shadow, borderRadius } from '../../theme/spacing';
@@ -23,15 +23,16 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TABS = ['Active', 'Past', 'Cancelled'];
 const TAB_WIDTH = SCREEN_WIDTH / TABS.length;
 
-const ACTIVE_STATUSES = ['PENDING', 'ACCEPTED', 'PACKED', 'PICKED_UP', 'IN_TRANSIT'];
-const PAST_STATUSES = ['DELIVERED'];
-const CANCELLED_STATUSES = ['CANCELLED'];
+const ACTIVE_STATUSES = ['PENDING', 'PAID', 'ACCEPTED', 'PACKED', 'PICKED_UP', 'IN_TRANSIT', 'ON_THE_WAY', 'DISPATCHED'];
+const PAST_STATUSES = ['DELIVERED', 'COMPLETED'];
+const CANCELLED_STATUSES = ['CANCELLED', 'REJECTED', 'REFUNDED'];
 
 function getStatusLabel(status: string): string {
   const s = status?.toUpperCase() || '';
   const labels: Record<string, string> = {
-    PENDING: 'Pending', ACCEPTED: 'Accepted', PACKED: 'Packed',
-    PICKED_UP: 'Picked Up', IN_TRANSIT: 'In Transit', DELIVERED: 'Delivered', CANCELLED: 'Cancelled',
+    PENDING: 'Pending', PAID: 'Paid', ACCEPTED: 'Accepted', PACKED: 'Packed',
+    PICKED_UP: 'Picked Up', IN_TRANSIT: 'In Transit', ON_THE_WAY: 'On The Way',
+    DISPATCHED: 'Dispatched', DELIVERED: 'Delivered', CANCELLED: 'Cancelled',
   };
   return labels[s] || status;
 }
@@ -146,7 +147,11 @@ export const OrdersScreen: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => { loadOrders(); }, [loadOrders]);
+  useFocusEffect(
+    useCallback(() => {
+      loadOrders();
+    }, [loadOrders])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -167,15 +172,16 @@ export const OrdersScreen: React.FC = () => {
   });
 
   const renderOrder = ({ item }: { item: Order }) => {
-    const targetId = item.id || (item as any)._id || (item as any).orderId;
+    if (!item) return null;
+    const targetId = item.id || (item as any)._id || (item as any).orderId || '';
     return (
       <OrderCard
         order={item}
         tab={activeTab}
-        onTrack={() => navigation.navigate('OrderTracking', { orderId: targetId, initialOrder: item })}
-        onRate={() => navigation.navigate('RateReview', { orderId: targetId })}
+        onTrack={() => targetId ? navigation.navigate('OrderTracking', { orderId: targetId, initialOrder: item }) : null}
+        onRate={() => targetId ? navigation.navigate('RateReview', { orderId: targetId }) : null}
         onReorder={() => {}}
-        onView={() => navigation.navigate('OrderDetail', { orderId: targetId, initialOrder: item })}
+        onView={() => targetId ? navigation.navigate('OrderDetail', { orderId: targetId, initialOrder: item }) : null}
       />
     );
   };
@@ -184,7 +190,13 @@ export const OrdersScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            (navigation as any).navigate('HomeTab');
+          }
+        }}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Orders</Text>

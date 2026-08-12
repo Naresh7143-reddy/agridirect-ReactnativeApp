@@ -18,6 +18,7 @@ import React, {
   useCallback,
   useMemo,
 } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -423,7 +424,11 @@ const FarmerOrdersScreen: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => { loadOrders(); }, [loadOrders]);
+  useFocusEffect(
+    useCallback(() => {
+      loadOrders();
+    }, [loadOrders])
+  );
 
   // ── Tab switch ─────────────────────────────────────────────────────────────
 
@@ -470,7 +475,14 @@ const FarmerOrdersScreen: React.FC = () => {
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Orders</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {navigation.canGoBack() && (
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Icon name="arrow-back" size={24} color={Colors.textPrimary} />
+            </TouchableOpacity>
+          )}
+          <Text style={styles.headerTitle}>Orders</Text>
+        </View>
         <TouchableOpacity onPress={() => loadOrders(true)}>
           <Icon name="refresh-outline" size={22} color={Colors.primary} />
         </TouchableOpacity>
@@ -530,20 +542,24 @@ const FarmerOrdersScreen: React.FC = () => {
         ListEmptyComponent={
           !loading ? <EmptyState tabKey={TABS[activeTab].key} /> : null
         }
-        renderItem={({ item }) => (
-          <OrderCard
-            order={item}
-            onPress={() =>
-              navigation.navigate('FarmerOrderDetail', {
-                orderId: item.id || (item as any)._id || (item as any).orderId,
-                initialOrder: item,
-              })
-            }
-            onAccept={() => openModal('accept', item.id || (item as any)._id)}
-            onReject={() => openModal('reject', item.id || (item as any)._id)}
-            onPack={() => openModal('pack', item.id || (item as any)._id)}
-          />
-        )}
+        renderItem={({ item }) => {
+          if (!item) return null;
+          const targetId = item.id || (item as any)._id || (item as any).orderId || '';
+          return (
+            <OrderCard
+              order={item}
+              onPress={() =>
+                targetId ? navigation.navigate('FarmerOrderDetail', {
+                  orderId: targetId,
+                  initialOrder: item,
+                }) : null
+              }
+              onAccept={() => targetId ? openModal('accept', targetId) : null}
+              onReject={() => targetId ? openModal('reject', targetId) : null}
+              onPack={() => targetId ? openModal('pack', targetId) : null}
+            />
+          );
+        }}
       />
 
       {/* Confirmation modal */}
