@@ -58,10 +58,17 @@ export const OrderDetailBottomSheet: React.FC<OrderDetailBottomSheetProps> = ({
   const [loading, setLoading] = useState(!initialOrder);
 
   useEffect(() => {
-    if (visible && orderId && !initialOrder) {
-      loadOrder();
+    if (visible && orderId) {
+      if (initialOrder) {
+        // Use initial order data immediately
+        setOrder(initialOrder);
+        setLoading(false);
+      } else {
+        // Load from API if no initial data
+        loadOrder();
+      }
     }
-  }, [visible, orderId]);
+  }, [visible, orderId, initialOrder]);
 
   const loadOrder = async () => {
     if (!orderId) return;
