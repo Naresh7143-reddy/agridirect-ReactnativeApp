@@ -86,6 +86,9 @@ function formatDateExact(val: any): string {
       d = new Date(y, mo - 1, day, h, mi, s);
     } else if (typeof val === 'number') {
       d = new Date(val);
+    } else if (typeof val === 'string') {
+      const clean = val.includes('T') ? val : val.replace(' ', 'T');
+      d = new Date(clean);
     } else {
       d = new Date(val);
     }
@@ -280,7 +283,9 @@ export default function OrderDetailScreen() {
             <Text style={s.orderTitle}>Order Details</Text>
             <Text style={s.headerPrice}>₹{grandTotal.toFixed(0)}</Text>
           </View>
-          <Text style={s.dateText}>{formatDateExact(order.createdAt)}</Text>
+          <Text style={s.dateText}>
+            {formatDateExact(order.createdAt ?? (order as any).updatedAt ?? (order as any).assignedAt ?? (order as any).date)}
+          </Text>
         </View>
 
         {/* Delivery Verification OTP banner (if active order & not delivered/cancelled) */}
