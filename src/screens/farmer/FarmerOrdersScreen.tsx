@@ -1,614 +1,372 @@
-/**
- * FarmerOrdersScreen
- *
- * - Scrollable tab bar (All | Pending | Accepted | Packed | Delivered | Cancelled)
- *   with animated sliding green underline indicator
- * - FlatList of order cards
- * - Each card: product thumbnails, order ID, buyer, time-ago, items summary, total, status
- * - Swipe right → Accept, Swipe left → Reject (with confirmation Modal)
- * - Pull-to-refresh with spinning sun icon
- * - "New Order" badge animates in when FCM arrives
- * - Per-tab empty states
- */
-
-import React, {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  useMemo,
-} from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+// FILE: src/screens/farmer/FarmerOrdersScreen.tsx
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Animated,
-  Platform,
   StatusBar,
   RefreshControl,
-  ScrollView,
-  Dimensions,
-  Clipboard,
+  ActivityIndicator,
+  Alert,
+  Platform,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import Modal from 'react-native-modal';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Toast from 'react-native-toast-message';
 
-import { Colors, OrderStatusColors } from '../../theme/colors';
-import { shadow, borderRadius } from '../../theme/spacing';
+import { Colors } from '../../theme/colors';
+import { borderRadius, shadow, spacing } from '../../theme/spacing';
 import { ordersApi } from '../../api/orders';
 import { OrderStatus, type Order } from '../../types/order';
-import { OrderDetailBottomSheet } from '../../components/OrderDetailBottomSheet';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { FarmerStackParamList } from '../../types/navigation';
 
-const { width: W } = Dimensions.get('window');
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-// ─── Tab config ───────────────────────────────────────────────────────────────
-
-interface TabDef {
-  key: string;
-  label: string;
-  status?: OrderStatus;
-}
-
-const TABS: TabDef[] = [
-  { key: 'ALL',       label: 'All' },
-  { key: 'PENDING',   label: 'Pending',   status: OrderStatus.PENDING },
-  { key: 'ACCEPTED',  label: 'Accepted',  status: OrderStatus.ACCEPTED },
-  { key: 'PACKED',    label: 'Packed',    status: OrderStatus.PACKED },
-  { key: 'DELIVERED', label: 'Delivered', status: OrderStatus.DELIVERED },
-  { key: 'CANCELLED', label: 'Cancelled', status: OrderStatus.CANCELLED },
+const TABS = [
+  { key: 'ALL',       label: 'All',       filter: null },
+  { key: 'PENDING',   label: 'Pending',   filter: ['PENDING'] },
+  { key: 'ACCEPTED',  label: 'Accepted',  filter: ['ACCEPTED'] },
+  { key: 'PACKED',    label: 'Packed',    filter: ['PACKED'] },
+  { key: 'DELIVERED', label: 'Delivered', filter: ['DELIVERED', 'COMPLETED'] },
+  { key: 'CANCELLED', label: 'Cancelled', filter: ['CANCELLED', 'REJECTED'] },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const timeAgo = (isoDate: string): string => {
-  const diff = Date.now() - new Date(isoDate).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-};
+function timeAgo(val: any): string {
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return '';
+    const diffMs   = Date.now() - d.getTime();
+    const mins     = Math.floor(diffMs / 60000);
+    if (mins < 1)  return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)  return `${hrs}h ago`;
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  } catch { return ''; }
+}
 
-const shortId = (id: string) => id.slice(-6).toUpperCase();
+function getStatusColor(status: string): { color: string; bg: string } {
+  const map: Record<string, { color: string; bg: string }> = {
+    PENDING:   { color: '#E65100', bg: '#FFF3E0' },
+    ACCEPTED:  { color: '#0277BD', bg: '#E1F5FE' },
+    PACKED:    { color: '#6A1B9A', bg: '#F3E5F5' },
+    PICKED_UP: { color: '#00838F', bg: '#E0F7FA' },
+    IN_TRANSIT:{ color: '#1565C0', bg: '#E3F2FD' },
+    ON_THE_WAY:{ color: '#1565C0', bg: '#E3F2FD' },
+    DELIVERED: { color: '#2E7D32', bg: '#E8F5E9' },
+    COMPLETED: { color: '#2E7D32', bg: '#E8F5E9' },
+    CANCELLED: { color: '#C62828', bg: '#FFEBEE' },
+    REJECTED:  { color: '#C62828', bg: '#FFEBEE' },
+  };
+  return map[status?.toUpperCase()] ?? { color: Colors.textSecondary, bg: Colors.border };
+}
 
-// ─── Status badge ─────────────────────────────────────────────────────────────
+function getStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    PENDING: 'Pending', ACCEPTED: 'Accepted', PACKED: 'Packed',
+    PICKED_UP: 'Picked Up', IN_TRANSIT: 'In Transit', ON_THE_WAY: 'On The Way',
+    DELIVERED: 'Delivered', COMPLETED: 'Delivered',
+    CANCELLED: 'Cancelled', REJECTED: 'Rejected',
+  };
+  return labels[status?.toUpperCase()] ?? status;
+}
 
-const StatusBadge: React.FC<{ status: OrderStatus }> = ({ status }) => {
-  const cfg = OrderStatusColors[status] ?? { color: Colors.textHint, bg: Colors.divider };
-  return (
-    <View style={[badgeStyles.pill, { backgroundColor: cfg.bg }]}>
-      <Text style={[badgeStyles.text, { color: cfg.color }]}>{status}</Text>
-    </View>
-  );
-};
+function unwrapOrders(response: any): Order[] {
+  if (!response) return [];
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response.data)) return response.data;
+  if (Array.isArray(response.data?.content)) return response.data.content;
+  if (Array.isArray(response.data?.items)) return response.data.items;
+  if (Array.isArray(response.content)) return response.content;
+  if (Array.isArray(response.items)) return response.items;
+  return [];
+}
 
-const badgeStyles = StyleSheet.create({
-  pill: {
-    borderRadius: borderRadius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    alignSelf: 'flex-start',
-  },
-  text: { fontSize: 11, fontWeight: '700' },
-});
+// ─── Order Card ───────────────────────────────────────────────────────────────
 
-// ─── Order card ───────────────────────────────────────────────────────────────
-
-interface OrderCardProps {
+interface CardProps {
   order: Order;
   onPress: () => void;
   onAccept: () => void;
-  onReject: () => void;
+  onDecline: () => void;
   onPack: () => void;
 }
 
-const OrderCard: React.FC<OrderCardProps> = ({ order, onPress, onAccept, onReject, onPack }) => {
-  const items = order.items ?? [];
-  const totalKg = items.reduce((s, i) => s + i.quantity, 0);
-  const firstThree = items.slice(0, 3);
-  const extra = items.length - 3;
-  
-  // Safe order ID extraction
-  const safeOrderId = order.id || (order as any)._id || (order as any).orderId || 'N/A';
-
-  const copyId = () => {
-    const orderNumber = order.orderNumber || safeOrderId;
-    Clipboard.setString(orderNumber);
-    Toast.show({ type: 'success', text1: 'Order ID copied!', position: 'top' });
-  };
+const OrderCard: React.FC<CardProps> = ({ order, onPress, onAccept, onDecline, onPack }) => {
+  const status = (order.status as string)?.toUpperCase() ?? 'PENDING';
+  const { color, bg } = getStatusColor(status);
+  const label = getStatusLabel(status);
+  const amount = (order as any).grandTotal ?? order.totalAmount ?? 0;
+  const itemCount = order.items?.length ?? 0;
+  const isPending  = status === 'PENDING';
+  const isAccepted = status === 'ACCEPTED';
 
   return (
-    <TouchableOpacity
-      style={cardStyles.card}
-      onPress={onPress}
-      activeOpacity={0.9}
-    >
-      <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-        {/* Thumbnail stack */}
-        <View style={cardStyles.thumbStack}>
-          {firstThree.map((item, i) => (
-            <View
-              key={item.id}
-              style={[
-                cardStyles.thumb,
-                { marginTop: i * 8, zIndex: firstThree.length - i },
-              ]}
-            >
-              <Icon name="leaf" size={20} color={Colors.primary} />
-            </View>
-          ))}
-          {extra > 0 && (
-            <View style={[cardStyles.extraBadge, { marginTop: firstThree.length * 8 }]}>
-              <Text style={cardStyles.extraText}>+{extra}</Text>
-            </View>
-          )}
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+      {/* Header */}
+      <View style={styles.cardHeader}>
+        <View>
+          <Text style={styles.orderNum}>
+            #{order.orderNumber ?? ((order as any).id ?? '').slice(-8).toUpperCase()}
+          </Text>
+          <Text style={styles.timeAgo}>{timeAgo(order.createdAt)}</Text>
         </View>
-
-        {/* Info */}
-        <View style={cardStyles.info}>
-          <View style={cardStyles.topRow}>
-            <TouchableOpacity onPress={copyId} style={cardStyles.idRow}>
-              <Text style={cardStyles.orderId}>#{shortId(safeOrderId)}</Text>
-              <Icon name="copy-outline" size={12} color={Colors.textHint} />
-            </TouchableOpacity>
-            <Text style={cardStyles.timeAgo}>{timeAgo(order.createdAt)}</Text>
-          </View>
-
-          <Text style={cardStyles.buyerName} numberOfLines={1}>
-            {order.buyerName ?? 'Buyer'}{typeof order.deliveryAddress === 'object' && order.deliveryAddress?.city ? ` · ${order.deliveryAddress.city}` : ''}
-          </Text>
-
-          <Text style={cardStyles.summary}>
-            {items.length} item{items.length !== 1 ? 's' : ''} · {totalKg} units
-          </Text>
-
-          <View style={cardStyles.bottomRow}>
-            <Text style={cardStyles.total}>₹{((order.grandTotal ?? order.totalAmount ?? 0)).toFixed(2)}</Text>
-            <StatusBadge status={order.status} />
-          </View>
+        <View style={[styles.statusPill, { backgroundColor: bg }]}>
+          <View style={[styles.statusDot, { backgroundColor: color }]} />
+          <Text style={[styles.statusText, { color }]}>{label}</Text>
         </View>
       </View>
 
+      <View style={styles.divider} />
 
-      {/* Quick action buttons */}
-      {order.status === OrderStatus.PENDING && (
-        <View style={cardStyles.actionsRow}>
-          <TouchableOpacity style={cardStyles.acceptFullBtn} onPress={onAccept}>
-            <Icon name="checkmark" size={16} color={Colors.white} />
-            <Text style={cardStyles.btnText}>Accept</Text>
+      {/* Body */}
+      <View style={styles.cardBody}>
+        <View style={styles.buyerRow}>
+          <Icon name="person-circle-outline" size={16} color={Colors.textSecondary} />
+          <Text style={styles.buyerName}>{order.buyerName ?? 'Customer'}</Text>
+        </View>
+        <Text style={styles.itemMeta}>
+          {itemCount} item{itemCount !== 1 ? 's' : ''} · ₹{amount.toFixed(2)}
+        </Text>
+        <Text style={styles.payMethod}>
+          Pay: {((order.paymentMethod as string) ?? 'COD').replace('_', ' ')}
+        </Text>
+      </View>
+
+      {/* Actions */}
+      {isPending && (
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.acceptBtn]}
+            onPress={e => { e.stopPropagation?.(); onAccept(); }}
+          >
+            <Icon name="checkmark" size={15} color={Colors.white} />
+            <Text style={styles.actionText}>Accept</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={cardStyles.rejectFullBtn} onPress={onReject}>
-            <Icon name="close" size={16} color={Colors.white} />
-            <Text style={cardStyles.btnText}>Decline</Text>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.declineBtn]}
+            onPress={e => { e.stopPropagation?.(); onDecline(); }}
+          >
+            <Icon name="close" size={15} color={Colors.white} />
+            <Text style={styles.actionText}>Decline</Text>
           </TouchableOpacity>
         </View>
       )}
-      {order.status === OrderStatus.ACCEPTED && (
-        <View style={cardStyles.actionsRow}>
-          <TouchableOpacity style={cardStyles.packFullBtn} onPress={onPack}>
-            <Icon name="cube-outline" size={16} color={Colors.white} />
-            <Text style={cardStyles.btnText}>Mark Packed</Text>
+
+      {isAccepted && (
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.packBtn]}
+            onPress={e => { e.stopPropagation?.(); onPack(); }}
+          >
+            <Icon name="cube-outline" size={15} color={Colors.white} />
+            <Text style={styles.actionText}>Mark as Packed</Text>
           </TouchableOpacity>
         </View>
       )}
+
+      {/* View details */}
+      <View style={styles.viewRow}>
+        <Text style={styles.viewText}>View details</Text>
+        <Icon name="chevron-forward" size={14} color={Colors.primary} />
+      </View>
     </TouchableOpacity>
   );
 };
 
-const cardStyles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: 16,
-    marginBottom: 12,
-    ...shadow.sm,
-  },
-  thumbStack: { width: 44, alignItems: 'center', position: 'relative', minHeight: 44 },
-  thumb: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: Colors.successLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: Colors.surface,
-    position: 'absolute',
-  },
-  extraBadge: {
-    position: 'absolute',
-    width: 28,
-    height: 20,
-    borderRadius: 4,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  extraText: { fontSize: 9, color: Colors.white, fontWeight: '700' },
-  info: { flex: 1 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  idRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  orderId: { fontSize: 14, fontWeight: '700', color: Colors.primary },
-  timeAgo: { fontSize: 11, color: Colors.textHint },
-  buyerName: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600', marginBottom: 2 },
-  summary: { fontSize: 12, color: Colors.textSecondary, marginBottom: 6 },
-  bottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  total: { fontSize: 16, fontWeight: '800', color: Colors.primary },
-  actionsRow: { flexDirection: 'row', gap: 10, marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.divider, paddingTop: 10 },
-  acceptFullBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.success, borderRadius: borderRadius.md, paddingVertical: 10 },
-  rejectFullBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.error, borderRadius: borderRadius.md, paddingVertical: 10 },
-  packFullBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.warning, borderRadius: borderRadius.md, paddingVertical: 10 },
-  btnText: { fontSize: 13, fontWeight: '700', color: Colors.white },
-});
-
-
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
-const EmptyState: React.FC<{ tabKey: string }> = ({ tabKey }) => {
-  const configs: Record<string, { icon: string; title: string; sub: string }> = {
-    PENDING:   { icon: 'moon-outline',      title: 'No new orders',        sub: 'New orders will appear here' },
-    ALL:       { icon: 'storefront-outline', title: 'No orders yet',        sub: 'Start listing products to receive orders!' },
-    ACCEPTED:  { icon: 'timer-outline',      title: 'Nothing accepted',     sub: 'Accept orders to start packing' },
-    PACKED:    { icon: 'cube-outline',       title: 'Nothing packed',       sub: 'Mark accepted orders as packed' },
-    DELIVERED: { icon: 'checkmark-done',     title: 'No deliveries yet',    sub: 'Delivered orders appear here' },
-    CANCELLED: { icon: 'close-circle-outline', title: 'No cancellations',   sub: 'Hopefully it stays that way!' },
+const EmptyState: React.FC<{ tab: string }> = ({ tab }) => {
+  const map: Record<string, { icon: string; title: string }> = {
+    ALL:       { icon: 'cart-outline',            title: 'No orders yet' },
+    PENDING:   { icon: 'time-outline',            title: 'No pending orders' },
+    ACCEPTED:  { icon: 'checkmark-circle-outline',title: 'No accepted orders' },
+    PACKED:    { icon: 'cube-outline',            title: 'No packed orders' },
+    DELIVERED: { icon: 'checkmark-done-outline',  title: 'No deliveries' },
+    CANCELLED: { icon: 'close-circle-outline',    title: 'No cancelled orders' },
   };
-  const cfg = configs[tabKey] ?? configs.ALL;
+  const { icon, title } = map[tab] ?? map.ALL;
   return (
-    <View style={emptyStyles.wrap}>
-      <Icon name={cfg.icon} size={64} color={Colors.border} />
-      <Text style={emptyStyles.title}>{cfg.title}</Text>
-      <Text style={emptyStyles.sub}>{cfg.sub}</Text>
+    <View style={styles.empty}>
+      <Icon name={icon} size={64} color={Colors.border} />
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptySub}>Orders will appear here</Text>
     </View>
   );
 };
 
-const emptyStyles = StyleSheet.create({
-  wrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12 },
-  title: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary },
-  sub: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-});
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
-// ─── Confirmation modal ───────────────────────────────────────────────────────
-
-interface ConfirmModalProps {
-  visible: boolean;
-  action: 'accept' | 'reject' | 'pack' | null;
-  orderId: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-const MODAL_CONFIG = {
-  accept: {
-    icon: 'checkmark-circle',
-    color: Colors.success,
-    title: 'Accept this order?',
-    sub: "You'll be committed to prepare and hand over this order for delivery.",
-    btnLabel: 'Yes, Accept',
-  },
-  pack: {
-    icon: 'cube',
-    color: Colors.warning,
-    title: 'Mark as Packed?',
-    sub: 'Confirm that this order is packed and ready for pickup by a delivery agent.',
-    btnLabel: 'Yes, Mark Packed',
-  },
-  reject: {
-    icon: 'close-circle',
-    color: Colors.error,
-    title: 'Decline this order?',
-    sub: 'The buyer will be notified and the order will be cancelled.',
-    btnLabel: 'Yes, Decline',
-  },
-};
-
-const ConfirmModal: React.FC<ConfirmModalProps> = ({ visible, action, orderId, onConfirm, onCancel }) => {
-  const cfg = action ? MODAL_CONFIG[action] : MODAL_CONFIG.reject;
-  return (
-    <Modal
-      isVisible={visible}
-      onBackdropPress={onCancel}
-      onBackButtonPress={onCancel}
-      animationIn="slideInUp"
-      animationOut="slideOutDown"
-      style={modalStyles.modal}
-    >
-      <View style={modalStyles.sheet}>
-        <View style={modalStyles.handle} />
-        <Icon
-          name={cfg.icon}
-          size={48}
-          color={cfg.color}
-          style={{ alignSelf: 'center', marginBottom: 12 }}
-        />
-        <Text style={modalStyles.title}>{cfg.title}</Text>
-        <Text style={modalStyles.sub}>{cfg.sub}</Text>
-        <TouchableOpacity
-          style={[modalStyles.confirmBtn, { backgroundColor: cfg.color }]}
-          onPress={onConfirm}
-        >
-          <Text style={modalStyles.confirmTxt}>{cfg.btnLabel}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={modalStyles.cancelBtn} onPress={onCancel}>
-          <Text style={modalStyles.cancelTxt}>Cancel</Text>
-        </TouchableOpacity>
-      </View>
-    </Modal>
-  );
-};
-
-const modalStyles = StyleSheet.create({
-  modal: { justifyContent: 'flex-end', margin: 0 },
-  sheet: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  title: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, textAlign: 'center', marginBottom: 10 },
-  sub: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 24 },
-  confirmBtn: {
-    borderRadius: borderRadius.md,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  confirmTxt: { fontSize: 16, fontWeight: '700', color: Colors.white },
-  cancelBtn: { alignItems: 'center', paddingVertical: 10 },
-  cancelTxt: { fontSize: 15, color: Colors.textSecondary },
-});
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
-const FarmerOrdersScreen: React.FC = () => {
+export const FarmerOrdersScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<FarmerStackParamList>>();
-  const [activeTab, setActiveTab] = useState(0);
-  const [orders, setOrders] = useState<Order[]>([]);
+
+  const [activeTab, setActiveTab]   = useState(0);
+  const [orders, setOrders]         = useState<Order[]>([]);
+  const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState<{
-    visible: boolean;
-    action: 'accept' | 'reject' | 'pack' | null;
-    orderId: string;
-  }>({ visible: false, action: null, orderId: '' });
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Bottom sheet state
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [sheetVisible, setSheetVisible] = useState(false);
-
-  // Sliding tab indicator
-  const indicatorX = useRef(new Animated.Value(0)).current;
-  const tabWidths = useRef<number[]>(TABS.map(() => 0)).current;
-  const tabOffsets = useRef<number[]>(TABS.map(() => 0)).current;
-
-  // Count badge per status
-  const counts = useMemo(() => {
-    const map: Record<string, number> = { ALL: orders.length };
-    TABS.forEach((t) => {
-      if (t.status) map[t.key] = orders.filter((o) => o.status === t.status).length;
-    });
-    return map;
-  }, [orders]);
-
-  // Filtered orders for current tab
-  const displayedOrders = useMemo(() => {
-    const tab = TABS[activeTab];
-    if (!tab.status) return orders;
-    return orders.filter((o) => o.status === tab.status);
-  }, [orders, activeTab]);
-
-  // ── Load orders ────────────────────────────────────────────────────────────
-
-  const loadOrders = useCallback(async (showRefresh = false) => {
-    if (showRefresh) setRefreshing(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const res: any = await ordersApi.getFarmerOrders({ limit: 50 } as any);
-      // API client unwraps response.data; handle both array and paginated shapes
-      const raw = res?.data ?? res;
-      const list = Array.isArray(raw) ? raw : (raw?.items ?? raw?.content ?? []);
-      setOrders(list);
+      const res = await ordersApi.getFarmerOrders({ limit: 200 });
+      setOrders(unwrapOrders(res));
     } catch {
-      Toast.show({ type: 'error', text1: 'Failed to load orders' });
+      setOrders([]);
     } finally {
-      setRefreshing(false);
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadOrders();
-    }, [loadOrders])
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const onRefresh = () => { setRefreshing(true); load(true); };
+
+  const filtered = orders.filter(o => {
+    const tab = TABS[activeTab];
+    if (!tab.filter) return true;
+    return tab.filter.includes((o.status as string)?.toUpperCase() ?? '');
+  });
+
+  // Sort: newest first
+  const sorted = [...filtered].sort((a, b) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
-  // ── Tab switch ─────────────────────────────────────────────────────────────
-
-  const switchTab = (index: number) => {
-    setActiveTab(index);
-    Animated.spring(indicatorX, {
-      toValue: tabOffsets[index],
-      friction: 8,
-      tension: 80,
-      useNativeDriver: false,
-    }).start();
+  const goToDetail = (order: Order) => {
+    const id = (order as any).id ?? (order as any)._id ?? '';
+    navigation.navigate('FarmerOrderDetail', { orderId: id, initialOrder: order });
   };
 
-  // ── Actions ────────────────────────────────────────────────────────────────
-
-  const openModal = (action: 'accept' | 'reject' | 'pack', orderId: string) => {
-    setModal({ visible: true, action, orderId });
-  };
-
-  const handleConfirm = async () => {
-    const { action, orderId } = modal;
-    setModal((m) => ({ ...m, visible: false }));
+  const doAccept = async (order: Order) => {
+    const id = (order as any).id ?? (order as any)._id ?? '';
+    setActionLoading(id);
     try {
-      if (action === 'accept') {
-        await ordersApi.accept(orderId);
-        Toast.show({ type: 'success', text1: 'Order accepted' });
-      } else if (action === 'pack') {
-        await ordersApi.markPacked(orderId);
-        Toast.show({ type: 'success', text1: 'Order marked as packed' });
-      } else {
-        Toast.show({ type: 'info', text1: 'Order declined' });
-      }
-      loadOrders();
+      await ordersApi.accept(id);
+      Toast.show({ type: 'success', text1: 'Order accepted!', text2: 'Please prepare it for packing.' });
+      await load(true);
     } catch (e: any) {
-      Toast.show({ type: 'error', text1: 'Action failed', text2: e?.message });
-    }
+      Toast.show({ type: 'error', text1: 'Failed to accept', text2: e?.message });
+    } finally { setActionLoading(null); }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const doDecline = (order: Order) => {
+    Alert.alert('Decline Order', 'Are you sure you want to decline this order?', [
+      { text: 'No', style: 'cancel' },
+      { text: 'Decline', style: 'destructive', onPress: async () => {
+        const id = (order as any).id ?? (order as any)._id ?? '';
+        setActionLoading(id);
+        try {
+          await ordersApi.cancel(id, 'Farmer declined');
+          Toast.show({ type: 'info', text1: 'Order declined' });
+          await load(true);
+        } catch (e: any) {
+          Toast.show({ type: 'error', text1: 'Failed', text2: e?.message });
+        } finally { setActionLoading(null); }
+      }},
+    ]);
+  };
+
+  const doPack = async (order: Order) => {
+    const id = (order as any).id ?? (order as any)._id ?? '';
+    setActionLoading(id);
+    try {
+      await ordersApi.markPacked(id);
+      Toast.show({ type: 'success', text1: 'Marked as Packed!', text2: 'Awaiting pickup by delivery agent.' });
+      await load(true);
+    } catch (e: any) {
+      Toast.show({ type: 'error', text1: 'Failed', text2: e?.message });
+    } finally { setActionLoading(null); }
+  };
+
+  // Pending count badge
+  const pendingCount = orders.filter(o => (o.status as string)?.toUpperCase() === 'PENDING').length;
 
   return (
-    <View style={styles.flex}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
 
       {/* Header */}
       <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          {navigation.canGoBack() && (
-            <TouchableOpacity onPress={() => navigation.goBack()}>
-              <Icon name="arrow-back" size={24} color={Colors.textPrimary} />
-            </TouchableOpacity>
-          )}
+        <View>
           <Text style={styles.headerTitle}>Orders</Text>
+          {pendingCount > 0 && (
+            <Text style={styles.headerSub}>{pendingCount} pending order{pendingCount !== 1 ? 's' : ''} need attention</Text>
+          )}
         </View>
-        <TouchableOpacity onPress={() => loadOrders(true)}>
-          <Icon name="refresh-outline" size={22} color={Colors.primary} />
-        </TouchableOpacity>
+        {pendingCount > 0 && (
+          <View style={styles.headerBadge}>
+            <Text style={styles.headerBadgeText}>{pendingCount}</Text>
+          </View>
+        )}
       </View>
 
-      {/* Tab bar */}
-      <View style={styles.tabBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {TABS.map((tab, i) => (
-            <TouchableOpacity
-              key={tab.key}
-              onPress={() => switchTab(i)}
-              onLayout={(e) => {
-                tabWidths[i] = e.nativeEvent.layout.width;
-                tabOffsets[i] = e.nativeEvent.layout.x;
-              }}
-              style={styles.tabItem}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.tabLabel, activeTab === i && styles.tabLabelActive]}>
-                {tab.label}
-              </Text>
-              {counts[tab.key] > 0 && (
-                <View style={[styles.countBadge, activeTab === i && styles.countBadgeActive]}>
-                  <Text style={[styles.countText, activeTab === i && styles.countTextActive]}>
-                    {counts[tab.key]}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        {/* Animated underline */}
-        <Animated.View
-          style={[
-            styles.tabIndicator,
-            { left: indicatorX, width: tabWidths[activeTab] || 60 },
-          ]}
+      {/* Tab bar (horizontal scroll) */}
+      <View style={styles.tabContainer}>
+        <FlashList
+          data={TABS}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          estimatedItemSize={90}
+          contentContainerStyle={styles.tabList}
+          keyExtractor={t => t.key}
+          renderItem={({ item, index }) => {
+            const count = item.filter
+              ? orders.filter(o => item.filter!.includes((o.status as string)?.toUpperCase())).length
+              : orders.length;
+            return (
+              <TouchableOpacity
+                style={[styles.tab, activeTab === index && styles.tabActive]}
+                onPress={() => setActiveTab(index)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.tabText, activeTab === index && styles.tabTextActive]}>
+                  {item.label}
+                </Text>
+                {count > 0 && (
+                  <View style={[styles.tabCount, activeTab === index && styles.tabCountActive]}>
+                    <Text style={[styles.tabCountText, activeTab === index && styles.tabCountTextActive]}>
+                      {count}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          }}
         />
       </View>
 
-      {/* Order list */}
-      <FlashList
-        data={displayedOrders}
-        keyExtractor={(o, index) => {
-          // Use multiple fallbacks for key extraction to prevent crashes
-          const key = o?.id || (o as any)?._id || (o as any)?.orderId || `order-${index}`;
-          return String(key);
-        }}
-        estimatedItemSize={140}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => loadOrders(true)}
-            colors={[Colors.primary]}
-            tintColor={Colors.primary}
-          />
-        }
-        ListEmptyComponent={
-          !loading ? <EmptyState tabKey={TABS[activeTab].key} /> : null
-        }
-        renderItem={({ item }) => {
-          if (!item) return null;
-          const targetId = item.id || (item as any)._id || (item as any).orderId || '';
-          
-          // Guard: Don't render if no valid order ID
-          if (!targetId) {
-            console.warn('[FarmerOrdersScreen] Order missing ID:', item);
-            return null;
-          }
-          
-          return (
+      {/* Content */}
+      {loading ? (
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loaderText}>Loading orders…</Text>
+        </View>
+      ) : (
+        <FlashList
+          data={sorted}
+          keyExtractor={o => (o as any).id ?? (o as any)._id ?? Math.random().toString()}
+          estimatedItemSize={220}
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
+          ListEmptyComponent={<EmptyState tab={TABS[activeTab].key} />}
+          renderItem={({ item }) => (
             <OrderCard
               order={item}
-              onPress={() => {
-                // Open bottom sheet instead of navigating
-                setSelectedOrderId(targetId);
-                setSelectedOrder(item);
-                setSheetVisible(true);
-              }}
-              onAccept={() => openModal('accept', targetId)}
-              onReject={() => openModal('reject', targetId)}
-              onPack={() => openModal('pack', targetId)}
+              onPress={() => goToDetail(item)}
+              onAccept={() => doAccept(item)}
+              onDecline={() => doDecline(item)}
+              onPack={() => doPack(item)}
             />
-          );
-        }}
-      />
-
-      {/* Confirmation modal */}
-      <ConfirmModal
-        visible={modal.visible}
-        action={modal.action}
-        orderId={modal.orderId}
-        onConfirm={handleConfirm}
-        onCancel={() => setModal((m) => ({ ...m, visible: false }))}
-      />
-
-      {/* Order Detail Bottom Sheet */}
-      <OrderDetailBottomSheet
-        visible={sheetVisible}
-        orderId={selectedOrderId}
-        initialOrder={selectedOrder}
-        onClose={() => {
-          setSheetVisible(false);
-          setSelectedOrderId(null);
-          setSelectedOrder(null);
-        }}
-        onTrackPress={(orderId) => {
-          navigation.navigate('FarmerOrderDetail', { orderId });
-        }}
-        onRatePress={() => {
-          // Farmers don't rate orders
-        }}
-      />
+          )}
+        />
+      )}
     </View>
   );
 };
@@ -616,52 +374,100 @@ const FarmerOrdersScreen: React.FC = () => {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.background },
+  root: { flex: 1, backgroundColor: '#F5F6FA' },
+
+  // Header
   header: {
+    backgroundColor: Colors.primary,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 12 : 52,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 56 : 24,
-    paddingBottom: 12,
-    backgroundColor: Colors.background,
   },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: Colors.textPrimary },
-  tabBar: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
-    position: 'relative',
-    backgroundColor: Colors.surface,
+  headerTitle: { fontSize: 22, fontWeight: '700', color: Colors.white },
+  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
+  headerBadge: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: Colors.secondary,
+    alignItems: 'center', justifyContent: 'center',
   },
-  tabItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 6,
-  },
-  tabLabel: { fontSize: 14, fontWeight: '500', color: Colors.textSecondary },
-  tabLabelActive: { color: Colors.primary, fontWeight: '700' },
-  tabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    height: 3,
-    backgroundColor: Colors.primary,
-    borderRadius: 2,
-  },
-  countBadge: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: Colors.divider,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  countBadgeActive: { backgroundColor: Colors.primary },
-  countText: { fontSize: 10, fontWeight: '700', color: Colors.textSecondary },
-  countTextActive: { color: Colors.white },
-  listContent: { padding: 16, flexGrow: 1 },
-});
+  headerBadgeText: { color: Colors.white, fontWeight: '700', fontSize: 14 },
 
-export default FarmerOrdersScreen;
+  // Tabs
+  tabContainer: { backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  tabList: { paddingHorizontal: 12 },
+  tab: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderBottomWidth: 2, borderBottomColor: 'transparent',
+    marginRight: 4,
+  },
+  tabActive: { borderBottomColor: Colors.primary },
+  tabText: { fontSize: 13, fontWeight: '500', color: Colors.textSecondary },
+  tabTextActive: { color: Colors.primary, fontWeight: '700' },
+  tabCount: {
+    backgroundColor: Colors.border,
+    borderRadius: 10, minWidth: 20, height: 20,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5,
+  },
+  tabCountActive: { backgroundColor: Colors.primaryMuted },
+  tabCountText: { fontSize: 11, fontWeight: '700', color: Colors.textHint },
+  tabCountTextActive: { color: Colors.primary },
+
+  // List
+  listContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
+
+  // Card
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: borderRadius.lg,
+    padding: 16,
+    marginBottom: 12,
+    ...shadow.sm,
+  },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
+  orderNum: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
+  timeAgo: { fontSize: 12, color: Colors.textHint, marginTop: 2 },
+  statusPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: borderRadius.full,
+  },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  statusText: { fontSize: 11, fontWeight: '600' },
+  divider: { height: 1, backgroundColor: Colors.divider, marginBottom: 10 },
+
+  cardBody: { gap: 4 },
+  buyerRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  buyerName: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
+  itemMeta: { fontSize: 13, color: Colors.textSecondary },
+  payMethod: { fontSize: 12, color: Colors.textHint },
+
+  // Actions
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  actionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 10, borderRadius: borderRadius.md,
+  },
+  acceptBtn: { backgroundColor: Colors.success },
+  declineBtn: { backgroundColor: Colors.error },
+  packBtn:   { backgroundColor: Colors.primaryLight },
+  actionText: { color: Colors.white, fontWeight: '700', fontSize: 13 },
+
+  viewRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end',
+    gap: 4, marginTop: 10, paddingTop: 8,
+    borderTopWidth: 1, borderTopColor: Colors.divider,
+  },
+  viewText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
+
+  // Empty
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
+  emptyTitle: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary, marginTop: 16 },
+  emptySub: { fontSize: 13, color: Colors.textSecondary, marginTop: 6 },
+
+  // Loader
+  loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loaderText: { marginTop: 12, color: Colors.textSecondary, fontSize: 14 },
+});
