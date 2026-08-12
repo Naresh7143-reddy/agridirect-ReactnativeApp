@@ -46,7 +46,8 @@ import {
 // ─── Role → Navigator ─────────────────────────────────────────────────────────
 
 const RoleNavigator: React.FC<{ role: string | null }> = ({ role }) => {
-  switch (role) {
+  const normRole = (role ?? '').toUpperCase();
+  switch (normRole) {
     case 'FARMER':   return <FarmerNavigator />;
     case 'BUYER':    return <BuyerNavigator />;
     case 'DELIVERY': return <DeliveryNavigator />;
