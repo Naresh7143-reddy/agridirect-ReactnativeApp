@@ -16,6 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors, OrderStatusColors } from '../../theme/colors';
 import { shadow, borderRadius } from '../../theme/spacing';
 import { ordersApi } from '../../api/orders';
+import { OrderDetailBottomSheet } from '../../components/OrderDetailBottomSheet';
 import type { Order } from '../../types/order';
 import type { BuyerStackParamList } from '../../navigation/types';
 
@@ -132,6 +133,11 @@ export const OrdersScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const tabAnim = useRef(new Animated.Value(0)).current;
 
+  // Bottom sheet state
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [sheetVisible, setSheetVisible] = useState(false);
+
   const loadOrders = useCallback(async () => {
     try {
       const res: any = await ordersApi.getBuyerOrders({ limit: 50 });
@@ -174,14 +180,26 @@ export const OrdersScreen: React.FC = () => {
   const renderOrder = ({ item }: { item: Order }) => {
     if (!item) return null;
     const targetId = item.id || (item as any)._id || (item as any).orderId || '';
+    
+    // Guard: Don't allow navigation if no valid order ID
+    if (!targetId) {
+      console.warn('[OrdersScreen] Order missing ID:', item);
+      return null;
+    }
+    
     return (
       <OrderCard
         order={item}
         tab={activeTab}
-        onTrack={() => targetId ? navigation.navigate('OrderTracking', { orderId: targetId, initialOrder: item }) : null}
-        onRate={() => targetId ? navigation.navigate('RateReview', { orderId: targetId }) : null}
+        onTrack={() => navigation.navigate('OrderTracking', { orderId: targetId, initialOrder: item })}
+        onRate={() => navigation.navigate('RateReview', { orderId: targetId })}
         onReorder={() => {}}
-        onView={() => targetId ? navigation.navigate('OrderDetail', { orderId: targetId, initialOrder: item }) : null}
+        onView={() => {
+          // Open bottom sheet instead of navigating
+          setSelectedOrderId(targetId);
+          setSelectedOrder(item);
+          setSheetVisible(true);
+        }}
       />
     );
   };
@@ -219,7 +237,11 @@ export const OrdersScreen: React.FC = () => {
         <FlashList
           data={filteredOrders}
           renderItem={renderOrder}
-          keyExtractor={(o) => o.id}
+          keyExtractor={(o, index) => {
+            // Use multiple fallbacks for key extraction to prevent crashes
+            const key = o?.id || (o as any)?._id || (o as any)?.orderId || `order-${index}`;
+            return String(key);
+          }}
           estimatedItemSize={160}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -233,6 +255,24 @@ export const OrdersScreen: React.FC = () => {
           }
         />
       )}
+
+      {/* Order Detail Bottom Sheet */}
+      <OrderDetailBottomSheet
+        visible={sheetVisible}
+        orderId={selectedOrderId}
+        initialOrder={selectedOrder}
+        onClose={() => {
+          setSheetVisible(false);
+          setSelectedOrderId(null);
+          setSelectedOrder(null);
+        }}
+        onTrackPress={(orderId) => {
+          navigation.navigate('OrderTracking', { orderId });
+        }}
+        onRatePress={(orderId) => {
+          navigation.navigate('RateReview', { orderId });
+        }}
+      />
     </View>
   );
 };

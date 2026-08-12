@@ -41,6 +41,7 @@ import { Colors, OrderStatusColors } from '../../theme/colors';
 import { shadow, borderRadius } from '../../theme/spacing';
 import { ordersApi } from '../../api/orders';
 import { OrderStatus, type Order } from '../../types/order';
+import { OrderDetailBottomSheet } from '../../components/OrderDetailBottomSheet';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { FarmerStackParamList } from '../../types/navigation';
@@ -114,9 +115,13 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onPress, onAccept, onRejec
   const totalKg = items.reduce((s, i) => s + i.quantity, 0);
   const firstThree = items.slice(0, 3);
   const extra = items.length - 3;
+  
+  // Safe order ID extraction
+  const safeOrderId = order.id || (order as any)._id || (order as any).orderId || 'N/A';
 
   const copyId = () => {
-    Clipboard.setString(order.orderNumber);
+    const orderNumber = order.orderNumber || safeOrderId;
+    Clipboard.setString(orderNumber);
     Toast.show({ type: 'success', text1: 'Order ID copied!', position: 'top' });
   };
 
@@ -151,7 +156,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onPress, onAccept, onRejec
         <View style={cardStyles.info}>
           <View style={cardStyles.topRow}>
             <TouchableOpacity onPress={copyId} style={cardStyles.idRow}>
-              <Text style={cardStyles.orderId}>#{shortId(order.id)}</Text>
+              <Text style={cardStyles.orderId}>#{shortId(safeOrderId)}</Text>
               <Icon name="copy-outline" size={12} color={Colors.textHint} />
             </TouchableOpacity>
             <Text style={cardStyles.timeAgo}>{timeAgo(order.createdAt)}</Text>
@@ -385,6 +390,11 @@ const FarmerOrdersScreen: React.FC = () => {
     orderId: string;
   }>({ visible: false, action: null, orderId: '' });
 
+  // Bottom sheet state
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [sheetVisible, setSheetVisible] = useState(false);
+
   // Sliding tab indicator
   const indicatorX = useRef(new Animated.Value(0)).current;
   const tabWidths = useRef<number[]>(TABS.map(() => 0)).current;
@@ -527,7 +537,11 @@ const FarmerOrdersScreen: React.FC = () => {
       {/* Order list */}
       <FlashList
         data={displayedOrders}
-        keyExtractor={(o) => o.id}
+        keyExtractor={(o, index) => {
+          // Use multiple fallbacks for key extraction to prevent crashes
+          const key = o?.id || (o as any)?._id || (o as any)?.orderId || `order-${index}`;
+          return String(key);
+        }}
         estimatedItemSize={140}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
@@ -545,18 +559,25 @@ const FarmerOrdersScreen: React.FC = () => {
         renderItem={({ item }) => {
           if (!item) return null;
           const targetId = item.id || (item as any)._id || (item as any).orderId || '';
+          
+          // Guard: Don't render if no valid order ID
+          if (!targetId) {
+            console.warn('[FarmerOrdersScreen] Order missing ID:', item);
+            return null;
+          }
+          
           return (
             <OrderCard
               order={item}
-              onPress={() =>
-                targetId ? navigation.navigate('FarmerOrderDetail', {
-                  orderId: targetId,
-                  initialOrder: item,
-                }) : null
-              }
-              onAccept={() => targetId ? openModal('accept', targetId) : null}
-              onReject={() => targetId ? openModal('reject', targetId) : null}
-              onPack={() => targetId ? openModal('pack', targetId) : null}
+              onPress={() => {
+                // Open bottom sheet instead of navigating
+                setSelectedOrderId(targetId);
+                setSelectedOrder(item);
+                setSheetVisible(true);
+              }}
+              onAccept={() => openModal('accept', targetId)}
+              onReject={() => openModal('reject', targetId)}
+              onPack={() => openModal('pack', targetId)}
             />
           );
         }}
@@ -569,6 +590,24 @@ const FarmerOrdersScreen: React.FC = () => {
         orderId={modal.orderId}
         onConfirm={handleConfirm}
         onCancel={() => setModal((m) => ({ ...m, visible: false }))}
+      />
+
+      {/* Order Detail Bottom Sheet */}
+      <OrderDetailBottomSheet
+        visible={sheetVisible}
+        orderId={selectedOrderId}
+        initialOrder={selectedOrder}
+        onClose={() => {
+          setSheetVisible(false);
+          setSelectedOrderId(null);
+          setSelectedOrder(null);
+        }}
+        onTrackPress={(orderId) => {
+          navigation.navigate('FarmerOrderDetail', { orderId });
+        }}
+        onRatePress={() => {
+          // Farmers don't rate orders
+        }}
       />
     </View>
   );

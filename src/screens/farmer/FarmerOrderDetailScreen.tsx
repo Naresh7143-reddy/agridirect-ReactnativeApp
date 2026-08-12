@@ -538,10 +538,21 @@ const FarmerOrderDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           <AdvancedMapView
             mode="tracking"
             style={{ width: '100%', height: 200 }}
-            pickupLocation={{ latitude: 13.085, longitude: 80.265, title: 'Your Farm' }}
-            dropoffLocation={{ latitude: 13.078, longitude: 80.28, title: order.buyerName || 'Buyer Location' }}
-            driverLocation={{ latitude: 13.082, longitude: 80.272 }}
-            vehicleType="BIKE"
+            pickupLocation={{
+              latitude: order.items?.[0]?.farmerLat || 13.085,
+              longitude: order.items?.[0]?.farmerLng || 80.265,
+              title: 'Your Farm'
+            }}
+            dropoffLocation={{
+              latitude: typeof order.deliveryAddress === 'object' ? order.deliveryAddress.lat || 13.078 : 13.078,
+              longitude: typeof order.deliveryAddress === 'object' ? order.deliveryAddress.lng || 80.28 : 80.28,
+              title: order.buyerName || 'Buyer Location'
+            }}
+            driverLocation={{
+              latitude: (order as any)?.driverLat || 13.082,
+              longitude: (order as any)?.driverLng || 80.272
+            }}
+            vehicleType={(order as any)?.requiredVehicleType || 'BIKE'}
             theme="green"
             showControls={false}
           />

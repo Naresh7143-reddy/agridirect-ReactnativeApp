@@ -31,6 +31,8 @@ export interface OrderItem {
   total: number;
   farmerId: string;
   farmerName?: string;
+  farmerLat?: number;    // Farmer location latitude
+  farmerLng?: number;    // Farmer location longitude
 }
 
 export interface DeliveryAddress {

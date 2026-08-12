@@ -96,6 +96,28 @@ export default function OrderDetailScreen() {
   if (loading && !order) return <View style={s.center}><ActivityIndicator color={Colors.primary} size="large"/><Text style={{marginTop: 10, color: Colors.textSecondary}}>Loading order...</Text></View>;
   if (!order)  return <View style={s.center}><Text style={s.err}>Order not found</Text><TouchableOpacity style={{marginTop: 12, backgroundColor: Colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: borderRadius.md}} onPress={() => navigation.goBack()}><Text style={{color: Colors.white, fontWeight: '700'}}>Go Back</Text></TouchableOpacity></View>;
 
+  // Guard: Ensure critical order fields exist
+  if (!order.status || !order.createdAt) {
+    console.error('[OrderDetailScreen] Invalid order data:', order);
+    return (
+      <View style={s.center}>
+        <Icon name="alert-circle-outline" size={48} color={Colors.error} />
+        <Text style={{color: Colors.textPrimary, fontSize: 16, fontWeight: '700', marginTop: 12}}>
+          Invalid order data
+        </Text>
+        <Text style={{color: Colors.textSecondary, fontSize: 14, marginTop: 4, textAlign: 'center', paddingHorizontal: 32}}>
+          This order contains incomplete information. Please try again later.
+        </Text>
+        <TouchableOpacity 
+          style={{marginTop: 16, backgroundColor: Colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: borderRadius.md}} 
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={{color: Colors.white, fontWeight: '700'}}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   const orderStatus = (order.status?.toUpperCase() || 'PENDING') as OrderStatus;
   const stepIndex   = STATUS_STEPS.indexOf(orderStatus);
   const isCancelled = orderStatus === 'CANCELLED';
@@ -121,7 +143,7 @@ export default function OrderDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
         <View style={s.card}>
           <View style={s.row}>
-            <Text style={s.orderNum}>{order.orderNumber}</Text>
+            <Text style={s.orderNum}>{order.orderNumber || `Order #${(order.id || '').slice(-6)}`}</Text>
             <View style={[s.badge,{backgroundColor: isCancelled ? Colors.errorLight : Colors.successLight}]}>
               <Text style={[s.badgeText,{color: isCancelled ? Colors.error : Colors.primary}]}>
                 {STATUS_LABELS[order.status] ?? order.status}
@@ -167,32 +189,51 @@ export default function OrderDetailScreen() {
         )}
 
         {/* Live Delivery Route Preview */}
-        {(!isCancelled && order.status !== 'DELIVERED') && (
-          <TouchableOpacity
-            style={[s.card, { padding: 0, overflow: 'hidden' }]}
-            onPress={() => navigation.navigate('OrderTracking', { orderId: order.id || (order as any)._id, initialOrder: order })}
-            activeOpacity={0.9}
-          >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
-              <Text style={s.sectionTitle}>Live Delivery Route</Text>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.primary }}>Open Map →</Text>
-            </View>
-            <AdvancedMapView
-              mode="tracking"
-              style={{ width: '100%', height: 180 }}
-              pickupLocation={{ latitude: 13.088, longitude: 80.265, title: 'Farm Harvest' }}
-              dropoffLocation={{ latitude: 13.075, longitude: 80.28, title: 'Your Address' }}
-              driverLocation={{ latitude: 13.082, longitude: 80.272 }}
-              theme="green"
-              showControls={false}
-              interactive={false}
-            />
-          </TouchableOpacity>
-        )}
+        {(!isCancelled && order.status !== 'DELIVERED') && (() => {
+          // Extract real location data from order
+          const deliveryAddr = typeof order.deliveryAddress === 'object' ? order.deliveryAddress : null;
+          const dropLat = deliveryAddr?.lat || 13.075;
+          const dropLng = deliveryAddr?.lng || 80.28;
+          
+          // Get first item's farmer location if available
+          const firstItem = order.items?.[0];
+          const pickupLat = firstItem?.farmerLat || 13.088;
+          const pickupLng = firstItem?.farmerLng || 80.265;
+          
+          // Get driver location from tracking events or use default
+          const driverLat = (order as any)?.driverLat || 13.082;
+          const driverLng = (order as any)?.driverLng || 80.272;
+          
+          const dropoffTitle = deliveryAddr?.label || deliveryAddr?.city || 'Your Address';
+          const farmerName = firstItem?.farmerName || 'Farm Pickup';
+          
+          return (
+            <TouchableOpacity
+              style={[s.card, { padding: 0, overflow: 'hidden' }]}
+              onPress={() => navigation.navigate('OrderTracking', { orderId: order.id || (order as any)._id, initialOrder: order })}
+              activeOpacity={0.9}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
+                <Text style={s.sectionTitle}>Live Delivery Route</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.primary }}>Open Map →</Text>
+              </View>
+              <AdvancedMapView
+                mode="tracking"
+                style={{ width: '100%', height: 180 }}
+                pickupLocation={{ latitude: pickupLat, longitude: pickupLng, title: farmerName }}
+                dropoffLocation={{ latitude: dropLat, longitude: dropLng, title: dropoffTitle }}
+                driverLocation={{ latitude: driverLat, longitude: driverLng }}
+                theme="green"
+                showControls={false}
+                interactive={false}
+              />
+            </TouchableOpacity>
+          );
+        })()}
 
         <View style={s.card}>
           <Text style={s.sectionTitle}>Items ({order.items?.length || 0})</Text>
-          {order.items?.map((item, idx) => {
+          {(order.items && Array.isArray(order.items)) ? order.items.map((item, idx) => {
             if (!item) return null;
             const unitP = Number(item.pricePerUnit ?? (item as any).unitPrice ?? (item as any).price ?? 0);
             const itemT = Number(item.total ?? (item as any).subtotal ?? (item as any).amount ?? (unitP * (item.quantity ?? 1))) || 0;
@@ -204,14 +245,16 @@ export default function OrderDetailScreen() {
                   : <View style={[s.itemImg,s.itemImgPlaceholder]}><Icon name="leaf" size={20} color={Colors.primary}/></View>
                 }
                 <View style={s.itemInfo}>
-                  <Text style={s.itemName}>{item.productName}</Text>
+                  <Text style={s.itemName}>{item.productName || 'Product'}</Text>
                   <Text style={s.itemSub}>by {item.farmerName ?? 'Farmer'}</Text>
-                  <Text style={s.itemSub}>{item.quantity} {item.unit} × {formatPrice(unitP)}</Text>
+                  <Text style={s.itemSub}>{item.quantity || 0} {item.unit || 'unit'} × {formatPrice(unitP)}</Text>
                 </View>
                 <Text style={s.itemTotal}>{formatPrice(itemT)}</Text>
               </View>
             );
-          })}
+          }) : (
+            <Text style={{color: Colors.textSecondary, padding: 12, textAlign: 'center'}}>No items found</Text>
+          )}
         </View>
 
         <View style={s.card}>

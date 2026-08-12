@@ -119,19 +119,34 @@ export default function DeliveriesScreen() {
       ) : (
         <FlashList
           data={filtered}
-          keyExtractor={o => o.id}
+          keyExtractor={(o, index) => {
+            // Use multiple fallbacks for key extraction to prevent crashes
+            const key = o?.id || (o as any)?._id || (o as any)?.orderId || `delivery-${index}`;
+            return String(key);
+          }}
           estimatedItemSize={130}
-          renderItem={({item}) => (
-            <DeliveryCard
-              order={item}
-              onPress={() =>
-                navigation.navigate('DeliveryOrderDetail', {
-                  orderId: item.id || (item as any)._id || item.orderId,
-                  initialOrder: item,
-                })
-              }
-            />
-          )}
+          renderItem={({item}) => {
+            if (!item) return null;
+            const targetId = item.id || (item as any)._id || (item as any).orderId || '';
+            
+            // Guard: Don't render if no valid order ID
+            if (!targetId) {
+              console.warn('[DeliveriesScreen] Order missing ID:', item);
+              return null;
+            }
+            
+            return (
+              <DeliveryCard
+                order={item}
+                onPress={() =>
+                  navigation.navigate('DeliveryOrderDetail', {
+                    orderId: targetId,
+                    initialOrder: item,
+                  })
+                }
+              />
+            );
+          }}
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={Colors.primary}/>}

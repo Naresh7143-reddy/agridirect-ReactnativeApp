@@ -74,16 +74,29 @@ export default function AdminOrdersScreen() {
       ) : (
         <FlashList
           data={filtered}
-          keyExtractor={o => o.id}
+          keyExtractor={(o, index) => {
+            // Use multiple fallbacks for key extraction to prevent crashes
+            const key = o?.id || (o as any)?._id || (o as any)?.orderId || `order-${index}`;
+            return String(key);
+          }}
           estimatedItemSize={90}
           renderItem={({ item }) => {
+            if (!item) return null;
+            const targetId = item.id || (item as any)._id || (item as any).orderId || '';
+            
+            // Guard: Don't render if no valid order ID
+            if (!targetId) {
+              console.warn('[AdminOrdersScreen] Order missing ID:', item);
+              return null;
+            }
+            
             const color = STATUS_COLOR[item.status] ?? Colors.textHint;
             return (
               <TouchableOpacity
                 style={s.card}
                 onPress={() =>
                   navigation.navigate('AdminOrderDetail', {
-                    orderId: item.id || (item as any)._id || (item as any).orderId,
+                    orderId: targetId,
                     initialOrder: item,
                   })
                 }

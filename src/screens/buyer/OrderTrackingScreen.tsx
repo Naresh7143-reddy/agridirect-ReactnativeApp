@@ -169,10 +169,20 @@ export const OrderTrackingScreen: React.FC = () => {
             latitude: agent?.lat || 13.0827,
             longitude: agent?.lng || 80.2707,
           }}
-          vehicleType={agent?.vehicleType || 'BIKE'}
+          vehicleType={agent?.vehicleType || order?.requiredVehicleType || 'BIKE'}
           etaMinutes={Math.max(1, Math.ceil(countdown / 60))}
-          pickupLocation={{ latitude: 13.088, longitude: 80.265, title: 'Farm Harvest' }}
-          dropoffLocation={{ latitude: 13.075, longitude: 80.28, title: 'Delivery Home' }}
+          pickupLocation={{
+            latitude: order?.items?.[0]?.farmerLat || 13.088,
+            longitude: order?.items?.[0]?.farmerLng || 80.265,
+            title: order?.items?.[0]?.farmerName || 'Farm Pickup'
+          }}
+          dropoffLocation={{
+            latitude: typeof order?.deliveryAddress === 'object' ? order.deliveryAddress.lat || 13.075 : 13.075,
+            longitude: typeof order?.deliveryAddress === 'object' ? order.deliveryAddress.lng || 80.28 : 80.28,
+            title: typeof order?.deliveryAddress === 'object' 
+              ? order.deliveryAddress.label || order.deliveryAddress.city || 'Delivery Location'
+              : 'Delivery Location'
+          }}
           theme="green"
         />
 
