@@ -10,11 +10,13 @@ import {
   View,
   ActivityIndicator,
 } from 'react-native';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import Modal from 'react-native-modal';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Icon from 'react-native-vector-icons/Ionicons';
+
 import { Colors } from '../../theme/colors';
 import { borderRadius, shadow } from '../../theme/spacing';
 import { deliveryApi } from '../../api/delivery';
@@ -22,8 +24,14 @@ import { calculateDynamicEta } from '../../utils/deliveryCalc';
 import AdvancedMapView from '../../components/map/AdvancedMapView';
 
 type DeliveryStackParamList = {
-
-  DeliveryNavigation: { orderId: string; pickupLat: number; pickupLng: number; dropLat: number; dropLng: number };
+  DeliveryNavigation: {
+    orderId: string;
+    pickupLat: number;
+    pickupLng: number;
+    dropLat: number;
+    dropLng: number;
+    initialStatus?: string;
+  };
   DeliveryOrderDetail: { orderId: string };
 };
 
@@ -42,45 +50,74 @@ const PHASE_STEPS: { phase: Phase; label: string; action: string; deliveryStatus
   { phase: 'ARRIVED_AT_DROP', label: 'At delivery location', action: 'Delivered Successfully', deliveryStatus: 'DELIVERED' },
 ];
 
+function getInitialPhaseIndex(status?: string): number {
+  if (!status) return 0;
+  const s = status.toUpperCase();
+  if (s === 'DELIVERED' || s === 'COMPLETED') return 3;
+  if (s === 'IN_TRANSIT' || s === 'ON_THE_WAY' || s === 'ARRIVED_AT_DROP') return 3;
+  if (s === 'PICKED_UP') return 2;
+  if (s === 'ARRIVED_AT_FARM') return 1;
+  return 0;
+}
+
 export const DeliveryNavigationScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<DeliveryStackParamList>>();
   const route = useRoute<RouteProp<DeliveryStackParamList, 'DeliveryNavigation'>>();
-  const { orderId } = route.params;
+  const { orderId, initialStatus } = route.params;
 
-  const [phaseIndex, setPhaseIndex] = useState(0);
+  const storageKey = `@delivery_phase_${orderId}`;
+
+  const [phaseIndex, setPhaseIndex] = useState<number>(() => getInitialPhaseIndex(initialStatus));
   const [showConfirm, setShowConfirm] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(initialStatus?.toUpperCase() === 'DELIVERED');
   const confettiRef = useRef<any>(null);
   const earningsAnim = useRef(new Animated.Value(0)).current;
 
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
 
-  const currentStep = PHASE_STEPS[phaseIndex];
+  const currentStep = PHASE_STEPS[phaseIndex] || PHASE_STEPS[0];
 
+  // Restore persisted phase from AsyncStorage on mount
   useEffect(() => {
-    // Fetch initial order status to prevent phase loop
-    const fetchStatus = async () => {
+    let isMounted = true;
+    const restorePhase = async () => {
       try {
+        const saved = await AsyncStorage.getItem(storageKey);
+        if (saved !== null && isMounted) {
+          const idx = parseInt(saved, 10);
+          if (!isNaN(idx) && idx >= 0 && idx < PHASE_STEPS.length) {
+            setPhaseIndex(idx);
+          }
+        }
+
+        // Also sync with backend status
         const res: any = await deliveryApi.getOrderById(orderId);
         const fetched = res?.data ?? res;
-        if (fetched?.status) {
+        if (fetched?.status && isMounted) {
           const s = fetched.status.toUpperCase();
           if (s === 'DELIVERED') {
             setDone(true);
           } else if (s === 'IN_TRANSIT' || s === 'ON_THE_WAY') {
-            setPhaseIndex(3);
+            setPhaseIndex((prev) => Math.max(prev, 3));
           } else if (s === 'PICKED_UP') {
-            setPhaseIndex(2);
+            setPhaseIndex((prev) => Math.max(prev, 2));
           }
         }
       } catch {
-        /* ignore fallback to 0 */
+        /* ignore */
       }
     };
-    fetchStatus();
-  }, [orderId]);
+    restorePhase();
+    return () => { isMounted = false; };
+  }, [orderId, storageKey]);
+
+  // Persist phase changes to AsyncStorage
+  const updatePhase = useCallback((newIdx: number) => {
+    setPhaseIndex(newIdx);
+    AsyncStorage.setItem(storageKey, String(newIdx)).catch(() => {});
+  }, [storageKey]);
 
   useEffect(() => {
     if (done) {
@@ -111,14 +148,15 @@ export const DeliveryNavigationScreen: React.FC = () => {
           return;
         }
       } else if (currentStep.deliveryStatus === 'PICKED_UP' || currentStep.deliveryStatus === 'IN_TRANSIT') {
-        await deliveryApi.updateOrderStatus(orderId, currentStep.deliveryStatus);
+        await deliveryApi.updateOrderStatus(orderId, currentStep.deliveryStatus as any);
       }
 
       setShowConfirm(false);
       if (phaseIndex >= PHASE_STEPS.length - 1) {
         setDone(true);
       } else {
-        setPhaseIndex((prev) => prev + 1);
+        const nextIdx = phaseIndex + 1;
+        updatePhase(nextIdx);
       }
     } catch (e: any) {
       const msg = e?.message || e?.data?.message || e?.response?.data?.message || 'Please try again.';
@@ -134,8 +172,7 @@ export const DeliveryNavigationScreen: React.FC = () => {
     } finally {
       setUpdating(false);
     }
-  }, [orderId, currentStep, phaseIndex, otp]);
-
+  }, [orderId, currentStep, phaseIndex, otp, updatePhase]);
 
   if (done) {
     return (
@@ -157,7 +194,13 @@ export const DeliveryNavigationScreen: React.FC = () => {
             <Text style={styles.earningsValue}>₹72</Text>
             <Text style={styles.earningsDetail}>₹40 base + ₹32 distance bonus</Text>
           </View>
-          <TouchableOpacity style={styles.doneBtn} onPress={() => navigation.goBack()}>
+          <TouchableOpacity
+            style={styles.doneBtn}
+            onPress={() => {
+              AsyncStorage.removeItem(storageKey).catch(() => {});
+              navigation.goBack();
+            }}
+          >
             <Text style={styles.doneBtnText}>Done →</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -197,7 +240,7 @@ export const DeliveryNavigationScreen: React.FC = () => {
         />
 
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>←</Text>
+          <Icon name="arrow-back" size={20} color={Colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -223,21 +266,20 @@ export const DeliveryNavigationScreen: React.FC = () => {
           </View>
         </View>
 
-
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <TouchableOpacity
             style={styles.navGoogleBtn}
             onPress={() => {
               const destLat = phaseIndex <= 1 ? (route.params.pickupLat || 13.0827) : (route.params.dropLat || 13.0827);
               const destLng = phaseIndex <= 1 ? (route.params.pickupLng || 80.2707) : (route.params.dropLng || 80.2707);
-              const url = require('react-native').Platform.select({
+              const url = Platform.select({
                 ios: `comgooglemaps://?daddr=${destLat},${destLng}&directionsmode=driving`,
                 android: `google.navigation:q=${destLat},${destLng}&mode=d`,
               });
               const fallback = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`;
               const { Linking } = require('react-native');
-              Linking.canOpenURL(url)
-                .then((ok: boolean) => ok ? Linking.openURL(url) : Linking.openURL(fallback))
+              Linking.canOpenURL(url || fallback)
+                .then((ok: boolean) => ok ? Linking.openURL(url!) : Linking.openURL(fallback))
                 .catch(() => Linking.openURL(fallback));
             }}
           >
@@ -312,7 +354,6 @@ export const DeliveryNavigationScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
-
     </View>
   );
 };
@@ -322,15 +363,7 @@ export default DeliveryNavigationScreen;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   mapContainer: { flex: 1, position: 'relative' },
-  mapPlaceholder: { flex: 1, backgroundColor: '#C8E6C9', alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  turnCard: { position: 'absolute', top: 60, left: 16, right: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.white, borderRadius: borderRadius.lg, padding: 14, ...shadow.md },
-  turnArrow: { fontSize: 32, color: Colors.primary },
-  turnInstruction: { fontSize: 16, fontWeight: '700', color: Colors.textPrimary },
-  turnStreet: { fontSize: 13, color: Colors.textHint },
-  mapIcon: { fontSize: 64, opacity: 0.3 },
-  routeLine: { position: 'absolute', width: 4, height: '50%', backgroundColor: Colors.primary, opacity: 0.4, borderRadius: 2 },
-  backBtn: { position: 'absolute', top: 60, left: 16, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: borderRadius.full, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', ...shadow.sm },
-  backBtnText: { fontSize: 20 },
+  backBtn: { position: 'absolute', top: 50, left: 16, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: borderRadius.full, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', ...shadow.sm },
   phaseRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingVertical: 12, backgroundColor: Colors.white },
   phaseDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.border },
   phaseDotActive: { backgroundColor: Colors.primary },
@@ -386,4 +419,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

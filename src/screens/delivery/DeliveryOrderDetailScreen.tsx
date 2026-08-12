@@ -62,6 +62,7 @@ export default function DeliveryOrderDetailScreen() {
           pickupLng: order.pickupLng ?? 0,
           dropLat: order.dropLat ?? 0,
           dropLng: order.dropLng ?? 0,
+          initialStatus: order.status,
         });
       return;
     }
@@ -129,6 +130,7 @@ export default function DeliveryOrderDetailScreen() {
             pickupLng: order.pickupLng ?? 80.2707,
             dropLat: order.dropLat ?? 13.075,
             dropLng: order.dropLng ?? 80.28,
+            initialStatus: order.status,
           });
         }}
       >
