@@ -321,7 +321,7 @@ export default function OrderDetailScreen() {
               Share this PIN with your delivery agent to receive your order.
             </Text>
             <View style={s.otpDigitsRow}>
-              {formattedOtpDigits.map((digit, i) => (
+              {formattedOtpDigits.map((digit: string, i: number) => (
                 <View key={i} style={s.otpDigitBox}>
                   <Text style={s.otpDigitText}>{digit}</Text>
                 </View>
@@ -568,7 +568,7 @@ const s = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: borderRadius.md,
     alignItems: 'center',
-    justify: 'center',
+    justifyContent: 'center',
     ...shadow.sm,
   },
   otpDigitText: { fontSize: 22, fontWeight: '800', color: Colors.primary },

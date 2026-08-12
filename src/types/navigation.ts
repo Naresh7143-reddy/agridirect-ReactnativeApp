@@ -186,6 +186,7 @@ export type DeliveryStackParamList = {
     pickupLng: number;
     dropLat: number;
     dropLng: number;
+    initialStatus?: string;
   };
 
   DeliveryOrderDetail: { orderId: string; initialOrder?: any; order?: any };
