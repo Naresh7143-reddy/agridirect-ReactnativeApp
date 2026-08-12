@@ -123,14 +123,11 @@ export const DeliveryHomeScreen: React.FC = () => {
       setEarnings(earningsData);
 
       const hasActive = validAssigned.some(o => ['assigned', 'picked_up', 'in_transit'].includes(o.status));
-      const onlineState = profileData?.isAvailable ?? profileData?.available ?? hasActive;
-      if (onlineState || hasActive) {
-        setIsOnline(true);
-        Animated.timing(toggleBg, { toValue: 1, duration: 300, useNativeDriver: false }).start();
-      } else if (profileData?.isAvailable !== undefined) {
-        setIsOnline(!!profileData.isAvailable);
-        Animated.timing(toggleBg, { toValue: profileData.isAvailable ? 1 : 0, duration: 300, useNativeDriver: false }).start();
-      }
+      const rawAvailable = profileData?.isAvailable ?? profileData?.available;
+      const onlineState = rawAvailable !== undefined ? Boolean(rawAvailable) : true;
+
+      setIsOnline(onlineState || hasActive);
+      Animated.timing(toggleBg, { toValue: (onlineState || hasActive) ? 1 : 0, duration: 300, useNativeDriver: false }).start();
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, [toggleBg]);
