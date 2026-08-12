@@ -78,11 +78,14 @@ function getStatusLabel(status: string): string {
 
 function unwrapOrders(response: any): Order[] {
   if (!response) return [];
+  // Direct array
   if (Array.isArray(response)) return response;
+  // Spring Boot Page<T>: { content: [...] } — axios returns response.data so we get this directly
+  if (Array.isArray(response.content)) return response.content;
+  // Wrapped in .data
   if (Array.isArray(response.data)) return response.data;
   if (Array.isArray(response.data?.content)) return response.data.content;
   if (Array.isArray(response.data?.items)) return response.data.items;
-  if (Array.isArray(response.content)) return response.content;
   if (Array.isArray(response.items)) return response.items;
   return [];
 }
@@ -202,7 +205,7 @@ const EmptyState: React.FC<{ tab: string }> = ({ tab }) => {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export const FarmerOrdersScreen: React.FC = () => {
+const FarmerOrdersScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<FarmerStackParamList>>();
 
   const [activeTab, setActiveTab]   = useState(0);
@@ -471,3 +474,7 @@ const styles = StyleSheet.create({
   loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loaderText: { marginTop: 12, color: Colors.textSecondary, fontSize: 14 },
 });
+
+// Named + default exports so both import styles work
+export { FarmerOrdersScreen };
+export default FarmerOrdersScreen;

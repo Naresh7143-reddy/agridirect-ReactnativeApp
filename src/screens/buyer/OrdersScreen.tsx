@@ -78,12 +78,18 @@ function getStatusLabel(status: string): string {
 
 function unwrapOrders(response: any): Order[] {
   if (!response) return [];
+  // Array directly
   if (Array.isArray(response)) return response;
+  // Spring Boot Page: { content: [...] } — axios interceptor returns response.data
+  // so we get this object directly
+  if (Array.isArray(response.content)) return response.content;
+  // Wrapped in .data (some endpoints)
   if (Array.isArray(response.data)) return response.data;
   if (Array.isArray(response.data?.content)) return response.data.content;
   if (Array.isArray(response.data?.items)) return response.data.items;
-  if (Array.isArray(response.content)) return response.content;
   if (Array.isArray(response.items)) return response.items;
+  // Single order object in data field
+  if (response.data && typeof response.data === 'object') return [response.data];
   return [];
 }
 
@@ -183,7 +189,7 @@ const EmptyState: React.FC<{ tab: string }> = ({ tab }) => {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-export const OrdersScreen: React.FC = () => {
+const OrdersScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<BuyerStackParamList>>();
 
   const [activeTab, setActiveTab] = useState(0);
@@ -367,3 +373,7 @@ const styles = StyleSheet.create({
   loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loaderText: { marginTop: 12, color: Colors.textSecondary, fontSize: 14 },
 });
+
+// Both named + default exports so navigator's default import works
+export { OrdersScreen };
+export default OrdersScreen;
