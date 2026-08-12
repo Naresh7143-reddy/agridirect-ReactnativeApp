@@ -221,8 +221,8 @@ export const OrderDetailBottomSheet: React.FC<OrderDetailBottomSheetProps> = ({
               {(order.items && Array.isArray(order.items) ? order.items : []).map((item, idx) => {
                 if (!item) return null;
                 const itemKey = item.id || (item as any).productId || `item-${idx}`;
-                const unitPrice = Number(item.pricePerUnit || (item as any).unitPrice || 0);
-                const itemTotal = Number(item.total || (item as any).subtotal || (unitPrice * item.quantity)) || 0;
+                const unitPrice = Number((item as any).priceAtOrder || item.pricePerUnit || (item as any).unitPrice || (item as any).price || (item as any).price_at_order || 0);
+                const itemTotal = Number(item.total || (item as any).totalPrice || (item as any).subtotal || (unitPrice * (item.quantity || 1))) || 0;
 
                 return (
                   <View key={itemKey} style={styles.itemRow}>

@@ -60,6 +60,29 @@ export const DeliveryNavigationScreen: React.FC = () => {
   const currentStep = PHASE_STEPS[phaseIndex];
 
   useEffect(() => {
+    // Fetch initial order status to prevent phase loop
+    const fetchStatus = async () => {
+      try {
+        const res: any = await deliveryApi.getOrderById(orderId);
+        const fetched = res?.data ?? res;
+        if (fetched?.status) {
+          const s = fetched.status.toUpperCase();
+          if (s === 'DELIVERED') {
+            setDone(true);
+          } else if (s === 'IN_TRANSIT' || s === 'ON_THE_WAY') {
+            setPhaseIndex(3);
+          } else if (s === 'PICKED_UP') {
+            setPhaseIndex(2);
+          }
+        }
+      } catch {
+        /* ignore fallback to 0 */
+      }
+    };
+    fetchStatus();
+  }, [orderId]);
+
+  useEffect(() => {
     if (done) {
       confettiRef.current?.start();
       Animated.timing(earningsAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
@@ -82,17 +105,15 @@ export const DeliveryNavigationScreen: React.FC = () => {
         try {
           await deliveryApi.verifyOtp(orderId, otp.trim());
         } catch (otpErr: any) {
-          Alert.alert('Invalid OTP', otpErr?.response?.data?.message || 'The OTP entered is incorrect. Ask buyer for valid 6-digit OTP.');
+          const errText = otpErr?.message || otpErr?.data?.message || otpErr?.response?.data?.message || 'The OTP entered is incorrect. Ask buyer for valid 6-digit OTP.';
+          Alert.alert('Invalid OTP', errText);
           setUpdating(false);
           return;
         }
+      } else if (currentStep.deliveryStatus === 'PICKED_UP' || currentStep.deliveryStatus === 'IN_TRANSIT') {
+        await deliveryApi.updateOrderStatus(orderId, currentStep.deliveryStatus);
       }
 
-      // Only update backend for actual valid delivery agent statuses
-      if (['PICKED_UP', 'IN_TRANSIT', 'DELIVERED'].includes(currentStep.deliveryStatus)) {
-        await deliveryApi.updateOrderStatus(orderId, currentStep.deliveryStatus as any);
-      }
-      
       setShowConfirm(false);
       if (phaseIndex >= PHASE_STEPS.length - 1) {
         setDone(true);
@@ -100,7 +121,7 @@ export const DeliveryNavigationScreen: React.FC = () => {
         setPhaseIndex((prev) => prev + 1);
       }
     } catch (e: any) {
-      const msg = e?.message || e?.response?.data?.message || 'Please try again.';
+      const msg = e?.message || e?.data?.message || e?.response?.data?.message || 'Please try again.';
       if (msg.includes('PACKED') || msg.includes('packed')) {
         Alert.alert(
           'Waiting for Farmer',

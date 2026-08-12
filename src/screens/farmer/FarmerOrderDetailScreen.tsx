@@ -74,12 +74,45 @@ function getStatusColors(status: string): { color: string; bg: string } {
   return map[status?.toUpperCase()] ?? { color: Colors.textSecondary, bg: Colors.border };
 }
 
-function formatDate(val: any): string {
+function formatDateExact(val: any): string {
+  if (!val) return '';
   try {
-    const d = new Date(val);
+    let d: Date;
+    if (Array.isArray(val)) {
+      const [y, mo, day, h = 0, mi = 0, s = 0] = val;
+      d = new Date(y, mo - 1, day, h, mi, s);
+    } else if (typeof val === 'number') {
+      d = new Date(val);
+    } else {
+      d = new Date(val);
+    }
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch { return ''; }
+    const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+    return `${dateStr} at ${timeStr}`;
+  } catch {
+    return '';
+  }
+}
+
+function getItemUnitPrice(item: any): number {
+  if (item.priceAtOrder != null && Number(item.priceAtOrder) > 0) return Number(item.priceAtOrder);
+  if (item.pricePerUnit != null && Number(item.pricePerUnit) > 0) return Number(item.pricePerUnit);
+  if (item.price != null && Number(item.price) > 0) return Number(item.price);
+  if (item.unitPrice != null && Number(item.unitPrice) > 0) return Number(item.unitPrice);
+  if (item.price_at_order != null && Number(item.price_at_order) > 0) return Number(item.price_at_order);
+  if (item.total != null && Number(item.total) > 0 && item.quantity > 0) return Number(item.total) / Number(item.quantity);
+  return 0;
+}
+
+function getItemTotal(item: any, fallbackTotal: number, itemCount: number): number {
+  if (item.total != null && Number(item.total) > 0) return Number(item.total);
+  if (item.totalPrice != null && Number(item.totalPrice) > 0) return Number(item.totalPrice);
+  if (item.subtotal != null && Number(item.subtotal) > 0) return Number(item.subtotal);
+  const uPrice = getItemUnitPrice(item);
+  if (uPrice > 0 && (item.quantity || 1) > 0) return uPrice * Number(item.quantity || 1);
+  if (fallbackTotal > 0) return fallbackTotal / Math.max(itemCount, 1);
+  return 0;
 }
 
 function unwrapOrder(res: any): Order | null {
@@ -185,10 +218,20 @@ export default function FarmerOrderDetailScreen() {
   const isPending   = status === 'PENDING';
   const isAccepted  = status === 'ACCEPTED';
 
-  const amount    = (order as any).grandTotal ?? order.totalAmount ?? 0;
-  const subTotal  = order.items?.reduce((acc, it) => acc + (it.total ?? 0), 0) ?? amount;
-  const delivery  = order.deliveryFee ?? 0;
-  const discount  = order.discount ?? 0;
+  const grandTotal = Number((order as any).grandTotal ?? (order as any).grandtotal ?? order.totalAmount ?? 0);
+  const delivery   = Number(order.deliveryFee ?? 0);
+  const discount   = Number(order.discount ?? 0);
+
+  const itemsList = order.items ?? [];
+  const itemCount = itemsList.length;
+
+  const itemsWithPrice = itemsList.map((item: any) => {
+    const uPrice = getItemUnitPrice(item);
+    const totalP = getItemTotal(item, grandTotal, itemCount);
+    return { ...item, parsedUnitPrice: uPrice, parsedTotal: totalP };
+  });
+
+  const subTotal = itemsWithPrice.reduce((sum, i) => sum + i.parsedTotal, 0) || grandTotal;
 
   const addr = typeof order.deliveryAddress === 'object' ? order.deliveryAddress : null;
   const addrText = addr
@@ -221,7 +264,7 @@ export default function FarmerOrderDetailScreen() {
               <Text style={[s.statusPillText, { color }]}>{getStatusLabel(status)}</Text>
             </View>
           </View>
-          <Text style={s.dateText}>Placed on {formatDate(order.createdAt)}</Text>
+          <Text style={s.dateText}>Placed on {formatDateExact(order.createdAt)}</Text>
         </View>
 
         {/* Buyer Info */}
@@ -290,7 +333,7 @@ export default function FarmerOrderDetailScreen() {
             <Icon name="basket-outline" size={18} color={Colors.primary} />
             <Text style={s.sectionTitle}>Order Items</Text>
           </View>
-          {(order.items ?? []).map((item: OrderItem, idx) => (
+          {itemsWithPrice.map((item: any, idx: number) => (
             <View
               key={idx}
               style={[s.itemRow, idx > 0 && { borderTopWidth: 1, borderTopColor: Colors.divider, paddingTop: 10, marginTop: 2 }]}
@@ -301,10 +344,10 @@ export default function FarmerOrderDetailScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.itemName}>{item.productName}</Text>
                 <Text style={s.itemQty}>
-                  {item.quantity} {item.unit ?? 'unit'} × ₹{item.pricePerUnit}
+                  {item.quantity} {item.unit ?? 'unit'} × ₹{item.parsedUnitPrice.toFixed(2)}
                 </Text>
               </View>
-              <Text style={s.itemTotal}>₹{(item.total ?? 0).toFixed(2)}</Text>
+              <Text style={s.itemTotal}>₹{item.parsedTotal.toFixed(2)}</Text>
             </View>
           ))}
         </View>

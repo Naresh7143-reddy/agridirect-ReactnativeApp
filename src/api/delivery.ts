@@ -67,11 +67,20 @@ export const deliveryApi = {
   /**
    * Verify buyer delivery OTP before completing delivery
    */
-  verifyOtp: (
+  verifyOtp: async (
     id: string,
     otp: string,
-  ): Promise<ApiResponse<{ success: boolean; message?: string }>> =>
-    client.post(`/api/orders/${id}/otp/verify`, { otp }),
+  ): Promise<ApiResponse<any>> => {
+    try {
+      return await client.post(`/api/delivery/verify-otp/${id}`, { otp });
+    } catch (e: any) {
+      try {
+        return await client.post(`/api/delivery/orders/${id}/verify-otp`, { otp });
+      } catch {
+        return await client.post(`/api/orders/${id}/otp/verify`, { otp });
+      }
+    }
+  },
 
   /**
    * Confirm delivery with proof of delivery image.
