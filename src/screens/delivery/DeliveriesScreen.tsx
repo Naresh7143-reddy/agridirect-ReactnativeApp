@@ -49,8 +49,15 @@ function getStatusLabel(status: string): string {
 }
 
 function timeAgo(val: any): string {
+  if (!val) return '';
   try {
-    const d = new Date(val);
+    let d: Date;
+    if (Array.isArray(val)) {
+      const [y, mo, day, h = 0, mi = 0] = val;
+      d = new Date(y, mo - 1, day, h, mi);
+    } else {
+      d = new Date(val);
+    }
     if (isNaN(d.getTime())) return '';
     const mins = Math.floor((Date.now() - d.getTime()) / 60000);
     if (mins < 1) return 'Just now';
@@ -78,6 +85,7 @@ function unwrapList(res: any): DeliveryOrder[] {
 function DeliveryCard({ order, onPress }: { order: DeliveryOrder; onPress: () => void }) {
   const { color, bg } = getStatusColor(order.status);
   const label = getStatusLabel(order.status);
+  const dateVal = (order as any).assignedAt ?? (order as any).createdAt ?? (order as any).updatedAt;
   const drop = typeof order.dropAddress === 'string'
     ? order.dropAddress
     : order.dropAddress
@@ -92,7 +100,7 @@ function DeliveryCard({ order, onPress }: { order: DeliveryOrder; onPress: () =>
           <Text style={s.orderNum}>
             #{order.orderNumber ?? (order.orderId ?? '').slice(-8).toUpperCase()}
           </Text>
-          <Text style={s.timeAgo}>{timeAgo((order as any).assignedAt)}</Text>
+          <Text style={s.timeAgo}>{timeAgo(dateVal)}</Text>
         </View>
         <View style={[s.statusPill, { backgroundColor: bg }]}>
           <View style={[s.statusDot, { backgroundColor: color }]} />

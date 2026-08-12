@@ -37,13 +37,19 @@ const TABS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDate(val: any): string {
+  if (!val) return '';
   try {
+    // Handle array timestamps from Java [year,month,day,hour,min,sec]
+    if (Array.isArray(val)) {
+      const [y, mo, d, h = 0, mi = 0] = val;
+      return new Date(y, mo - 1, d, h, mi).toLocaleDateString('en-IN', {
+        day: 'numeric', month: 'short', year: 'numeric',
+      });
+    }
     const d = new Date(val);
     if (isNaN(d.getTime())) return '';
     return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch {
-    return '';
-  }
+  } catch { return ''; }
 }
 
 function getStatusColor(status: string): { color: string; bg: string } {
@@ -105,7 +111,10 @@ const OrderCard: React.FC<CardProps> = ({ order, tabIndex, onPress }) => {
   const status = (order.status as string)?.toUpperCase() ?? 'PENDING';
   const { color, bg } = getStatusColor(status);
   const label = getStatusLabel(status);
-  const amount = (order as any).grandTotal ?? order.totalAmount ?? 0;
+  // Price: try grandTotal first, fallback to totalAmount, then 0
+  const rawAmount = (order as any).grandTotal ?? (order as any).grandtotal ??
+                    order.totalAmount ?? (order as any).total ?? 0;
+  const amount = typeof rawAmount === 'number' ? rawAmount : parseFloat(String(rawAmount)) || 0;
   const itemCount = order.items?.length ?? 0;
   const itemLabel = itemCount === 1 ? '1 Order Item' : `${itemCount} Order Items`;
   const isCancelled = tabIndex === 2;

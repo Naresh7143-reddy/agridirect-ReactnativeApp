@@ -37,11 +37,19 @@ const TABS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function timeAgo(val: any): string {
+  if (!val) return '';
   try {
-    const d = new Date(val);
+    let d: Date;
+    // Java LocalDateTime array: [year, month, day, hour, minute, second, nano]
+    if (Array.isArray(val)) {
+      const [y, mo, day, h = 0, mi = 0] = val;
+      d = new Date(y, mo - 1, day, h, mi);
+    } else {
+      d = new Date(val);
+    }
     if (isNaN(d.getTime())) return '';
-    const diffMs   = Date.now() - d.getTime();
-    const mins     = Math.floor(diffMs / 60000);
+    const diffMs = Date.now() - d.getTime();
+    const mins   = Math.floor(diffMs / 60000);
     if (mins < 1)  return 'Just now';
     if (mins < 60) return `${mins}m ago`;
     const hrs = Math.floor(mins / 60);
@@ -104,7 +112,9 @@ const OrderCard: React.FC<CardProps> = ({ order, onPress, onAccept, onDecline, o
   const status = (order.status as string)?.toUpperCase() ?? 'PENDING';
   const { color, bg } = getStatusColor(status);
   const label = getStatusLabel(status);
-  const amount = (order as any).grandTotal ?? order.totalAmount ?? 0;
+  const rawAmount = (order as any).grandTotal ?? (order as any).grandtotal ??
+                    order.totalAmount ?? (order as any).total ?? 0;
+  const amount = typeof rawAmount === 'number' ? rawAmount : parseFloat(String(rawAmount)) || 0;
   const itemCount = order.items?.length ?? 0;
   const isPending  = status === 'PENDING';
   const isAccepted = status === 'ACCEPTED';

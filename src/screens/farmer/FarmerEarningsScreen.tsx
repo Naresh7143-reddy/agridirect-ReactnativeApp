@@ -14,7 +14,7 @@ import React, {
   useRef,
   useCallback,
 } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -246,15 +246,25 @@ const FarmerEarningsScreen: React.FC = () => {
         to: now.toISOString().split('T')[0],
       });
       // API client unwraps response.data, so res is { totalEarnings, pendingPayouts, paidOut, byDate }
-      // Backend may also use pendingPayout (singular) or pending_payouts — handle all
       const data: any = res?.data ?? res;
+      const byDateList: EarningEntry[] = Array.isArray(data?.byDate) ? data.byDate :
+                                         Array.isArray(data?.by_date) ? data.by_date :
+                                         Array.isArray(data?.entries) ? data.entries :
+                                         Array.isArray(data) ? data : [];
+
+      const calcTotal   = byDateList.reduce((acc, item) => acc + (item.amount || 0), 0);
+      const calcPaid    = byDateList.filter(i => i.status === 'paid').reduce((acc, item) => acc + (item.amount || 0), 0);
+      const calcPending = byDateList.filter(i => i.status !== 'paid').reduce((acc, item) => acc + (item.amount || 0), 0);
+
+      const totalVal   = data?.totalEarnings ?? data?.total_earnings ?? data?.totalRevenue ?? (calcTotal > 0 ? calcTotal : 0);
+      const pendingVal = data?.pendingPayouts ?? data?.pending_payouts ?? data?.pendingPayout ?? data?.pending ?? calcPending;
+      const paidVal    = data?.paidOut ?? data?.paid_out ?? data?.paid ?? calcPaid;
+
       setEarnings({
-        totalEarnings:  data?.totalEarnings  ?? data?.total_earnings  ?? data?.totalRevenue ?? 0,
-        pendingPayouts: data?.pendingPayouts ?? data?.pending_payouts ?? data?.pendingPayout ?? data?.pending ?? 0,
-        paidOut:        data?.paidOut        ?? data?.paid_out        ?? data?.paid         ?? 0,
-        byDate:         Array.isArray(data?.byDate) ? data.byDate :
-                        Array.isArray(data?.by_date) ? data.by_date :
-                        Array.isArray(data?.entries) ? data.entries : [],
+        totalEarnings:  totalVal,
+        pendingPayouts: pendingVal,
+        paidOut:        paidVal,
+        byDate:         byDateList,
       });
     } catch {
       /* fallback so UI still shows something */
@@ -264,7 +274,11 @@ const FarmerEarningsScreen: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => { loadEarnings(period); }, [period]);
+  useFocusEffect(
+    useCallback(() => {
+      loadEarnings(period);
+    }, [loadEarnings, period])
+  );
 
   // ── Period switch ─────────────────────────────────────────────────────────────
 
@@ -470,4 +484,5 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 14, color: Colors.textSecondary },
 });
 
+export { FarmerEarningsScreen };
 export default FarmerEarningsScreen;

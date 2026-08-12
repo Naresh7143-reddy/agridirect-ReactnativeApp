@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   Animated, ScrollView, StyleSheet, Text,
   TouchableOpacity, View, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { Svg, Rect, Text as SvgText, Line } from 'react-native-svg';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Dimensions } from 'react-native';
 import { Colors } from '../../theme/colors';
@@ -47,30 +47,44 @@ export const DeliveryEarningsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedBar, setSelectedBar] = useState<number | null>(null);
 
-  const load = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
       const res: any = await deliveryApi.getEarnings();
       const data: any = res?.data ?? res;
-      const historyList = Array.isArray(data?.byDate) ? data.byDate :
-                         Array.isArray(data?.by_date) ? data.by_date :
-                         Array.isArray(data?.entries) ? data.entries : [];
+      const historyList: EarningEntry[] = Array.isArray(data?.byDate) ? data.byDate :
+                                           Array.isArray(data?.by_date) ? data.by_date :
+                                           Array.isArray(data?.entries) ? data.entries :
+                                           Array.isArray(data) ? data : [];
+
+      // Calculate totals if missing from response
+      const totalFromHistory = historyList.reduce((acc, item) => acc + (item.amount || 0), 0);
+      const paidFromHistory = historyList.filter(i => i.status === 'paid').reduce((acc, item) => acc + (item.amount || 0), 0);
+      const pendingFromHistory = historyList.filter(i => i.status !== 'paid').reduce((acc, item) => acc + (item.amount || 0), 0);
 
       setEarnings({
-        total:     (data?.total || data?.totalEarnings) || 0,
-        pending:   data?.pending   || 0,
-        paid:      data?.paid      || 0,
-        today:     (data?.today || data?.todayEarnings) || 0,
-        thisWeek:  (data?.thisWeek || data?.weekEarnings) || 0,
-        thisMonth: (data?.thisMonth || data?.monthEarnings) || 0,
+        total:     data?.total ?? data?.totalEarnings ?? totalFromHistory,
+        pending:   data?.pending ?? pendingFromHistory,
+        paid:      data?.paid ?? paidFromHistory,
+        today:     data?.today ?? data?.todayEarnings ?? 0,
+        thisWeek:  data?.thisWeek ?? data?.weekEarnings ?? 0,
+        thisMonth: data?.thisMonth ?? data?.monthEarnings ?? 0,
         byDate:    historyList,
       });
 
-    } catch {}
-    finally { setLoading(false); setRefreshing(false); }
-  };
+    } catch (e) {
+      setEarnings({ total: 0, pending: 0, paid: 0, today: 0, thisWeek: 0, thisMonth: 0, byDate: [] });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   // Build last-7-days chart from byDate
   const last7 = (() => {

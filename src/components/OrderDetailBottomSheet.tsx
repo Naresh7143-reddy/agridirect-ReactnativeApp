@@ -154,12 +154,19 @@ export const OrderDetailBottomSheet: React.FC<OrderDetailBottomSheetProps> = ({
                     #{order.orderNumber || `Order ${(order.id || '').slice(-6)}`}
                   </Text>
                   <Text style={styles.orderDate}>
-                    {new Date(order.createdAt).toLocaleDateString('en-IN', {
-                      day: 'numeric',
-                      month: 'short',
+                    {new Date(
+                      // Handle various date formats
+                      typeof order.createdAt === 'number' 
+                        ? order.createdAt 
+                        : !isNaN(Number(order.createdAt))
+                          ? Number(order.createdAt)
+                          : order.createdAt
+                    ).toLocaleDateString('en-IN', { 
+                      day: 'numeric', 
+                      month: 'short', 
                       year: 'numeric',
                       hour: '2-digit',
-                      minute: '2-digit',
+                      minute: '2-digit'
                     })}
                   </Text>
                 </View>
@@ -185,7 +192,7 @@ export const OrderDetailBottomSheet: React.FC<OrderDetailBottomSheetProps> = ({
                   {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''}
                 </Text>
                 <Text style={styles.totalAmount}>
-                  ₹{(order.grandTotal || order.totalAmount || 0).toFixed(2)}
+                  ₹{((order as any).grandTotal || order.totalAmount || 0).toFixed(2)}
                 </Text>
               </View>
             </View>
@@ -259,14 +266,14 @@ export const OrderDetailBottomSheet: React.FC<OrderDetailBottomSheetProps> = ({
               <View style={styles.priceRow}>
                 <Text style={styles.priceLabel}>Delivery Fee</Text>
                 <Text style={styles.priceValue}>
-                  {formatPrice(order.deliveryFee || 0)}
+                  {formatPrice((order as any).deliveryFee || 0)}
                 </Text>
               </View>
-              {(order.discount || 0) > 0 && (
+              {((order as any).discount || 0) > 0 && (
                 <View style={styles.priceRow}>
                   <Text style={[styles.priceLabel, styles.discountText]}>Discount</Text>
                   <Text style={[styles.priceValue, styles.discountText]}>
-                    -{formatPrice(order.discount || 0)}
+                    -{formatPrice((order as any).discount || 0)}
                   </Text>
                 </View>
               )}
@@ -274,7 +281,7 @@ export const OrderDetailBottomSheet: React.FC<OrderDetailBottomSheetProps> = ({
               <View style={styles.priceRow}>
                 <Text style={styles.totalLabel}>Total</Text>
                 <Text style={styles.totalValue}>
-                  {formatPrice(order.grandTotal || order.totalAmount || 0)}
+                  {formatPrice((order as any).grandTotal || order.totalAmount || 0)}
                 </Text>
               </View>
             </View>
